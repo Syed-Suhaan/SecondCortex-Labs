@@ -9,12 +9,9 @@ Endpoints:
   GET  /health           — Health check.
 """
 
-import logging
-import sys
-import os
+from __future__ import annotations
 
-# ── Force Python to see the local directories (fixes Azure ModuleNotFoundError) ──────────
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+import logging
 
 from fastapi import BackgroundTasks, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
