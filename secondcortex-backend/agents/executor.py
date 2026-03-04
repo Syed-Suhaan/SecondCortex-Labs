@@ -150,7 +150,7 @@ class ExecutorAgent:
             raw = response.choices[0].message.content or "{}"
             return json.loads(raw)
         except Exception as exc:
-            logger.error("Executor LLM call failed: %s", exc)
+            logger.error("Executor LLM draft call failed. Error: %s", exc, exc_info=True)
             return {"summary": "Error generating answer.", "confidence": 0.0}
 
     async def _validate_draft(self, question: str, draft: dict, context: str) -> dict:
@@ -176,5 +176,5 @@ class ExecutorAgent:
             raw = response.choices[0].message.content or "{}"
             return json.loads(raw)
         except Exception as exc:
-            logger.error("Validation LLM call failed: %s", exc)
+            logger.error("Validator LLM call failed. Error: %s", exc, exc_info=True)
             return {"is_valid": True, "issues": [], "revised_confidence": 0.5}

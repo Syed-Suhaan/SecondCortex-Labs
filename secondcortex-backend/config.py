@@ -6,6 +6,7 @@ Supports two modes:
   2. Azure OpenAI (legacy)  — uses Azure OpenAI endpoint + key
 """
 
+from pydantic import Field
 from pydantic_settings import BaseSettings
 
 
@@ -14,7 +15,7 @@ class Settings(BaseSettings):
     llm_provider: str = "github_models"
 
     # ── GitHub Models ────────────────────────────────────────
-    github_token: str = ""
+    github_token: str = Field("", validation_alias="GITHUB_TOKEN")
     github_models_endpoint: str = "https://models.inference.ai.azure.com"
     github_models_chat_model: str = "gpt-4o"
     github_models_embedding_model: str = "text-embedding-3-small"
@@ -32,7 +33,7 @@ class Settings(BaseSettings):
     chroma_db_path: str = "./chroma_db"
 
     # ── JWT Authentication ────────────────────────────────────
-    jwt_secret: str = ""
+    jwt_secret: str = Field("", validation_alias="JWT_SECRET")
 
     # ── Server ───────────────────────────────────────────────
     host: str = "0.0.0.0"

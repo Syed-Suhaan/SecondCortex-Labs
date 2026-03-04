@@ -15,8 +15,9 @@ logger = logging.getLogger("secondcortex.llm")
 def create_llm_client() -> OpenAI:
     """Return an OpenAI-compatible client based on the configured provider."""
     if settings.llm_provider == "github_models":
-        logger.info("Using GitHub Models (endpoint: %s, model: %s)",
-                     settings.github_models_endpoint, settings.github_models_chat_model)
+        key_status = "present" if settings.github_token else "MISSING"
+        logger.info("Using GitHub Models (endpoint: %s, model: %s). API Key: %s",
+                     settings.github_models_endpoint, settings.github_models_chat_model, key_status)
         return OpenAI(
             base_url=settings.github_models_endpoint,
             api_key=settings.github_token,
