@@ -100,6 +100,22 @@ async def get_current_user(
     return payload["sub"]  # user_id
 
 
+# ── Redirects ───────────────────────────────────────────────────
+
+@app.get("/signup")
+@app.post("/signup")
+async def signup_redirect():
+    """Redirect to the correct auth endpoint."""
+    return {"detail": "Please use /api/v1/auth/signup for sign up requests."}
+
+
+@app.get("/login")
+@app.post("/login")
+async def login_redirect():
+    """Redirect to the correct auth endpoint."""
+    return {"detail": "Please use /api/v1/auth/login for login requests."}
+
+
 # ── Endpoints ───────────────────────────────────────────────────
 
 @app.get("/health")
