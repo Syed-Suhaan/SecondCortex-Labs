@@ -65,5 +65,7 @@ project_log.txt
 git_log.txt
 backend_logs/
 frontend_html.txt
+DEMO_READY.md
+secondcortex-backend/verify_backend.py
 
 

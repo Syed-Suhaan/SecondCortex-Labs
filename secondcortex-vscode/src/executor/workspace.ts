@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import * as path from 'path';
 import { BackendClient } from '../backendClient';
 
 /**
@@ -85,7 +86,17 @@ export class WorkspaceResurrector {
 
     private async openFile(filePath: string, viewColumn?: number): Promise<void> {
         this.output.appendLine(`[Resurrector] Opening file: ${filePath}`);
-        const uri = vscode.Uri.file(filePath);
+
+        // Resolve relative paths to workspace root
+        let absolutePath = filePath;
+        if (!path.isAbsolute(filePath)) {
+            const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+            if (root) {
+                absolutePath = path.join(root, filePath);
+            }
+        }
+
+        const uri = vscode.Uri.file(absolutePath);
         const doc = await vscode.workspace.openTextDocument(uri);
         await vscode.window.showTextDocument(doc, {
             viewColumn: viewColumn

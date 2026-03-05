@@ -604,25 +604,35 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
         }
         #send-btn:active { transform: scale(0.98); }
 
+        .shield-badge {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 10px;
+            font-weight: 700;
+            color: #10b981;
+            background: rgba(16, 185, 129, 0.1);
+            padding: 2px 8px;
+            border-radius: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
         .user-info {
             font-size: 11px;
             color: var(--text-dim);
             font-weight: 500;
         }
-
-        /* ── Typography Highlighting ───────────────────────── */
-        code {
-            background: rgba(255, 255, 255, 0.05);
-            padding: 2px 4px;
-            border-radius: 3px;
-            font-family: 'Fira Code', monospace;
-            font-size: 0.9em;
-        }
     </style>
 </head>
 <body>
     <div class="header">
-        <h2 id="current-title">🧠 SecondCortex</h2>
+        <div>
+            <h2 id="current-title">🧠 SecondCortex</h2>
+            <div class="shield-badge">
+                <span style="font-size: 12px;">🛡️</span> Privacy Protected
+            </div>
+        </div>
         <div class="header-actions">
             <button class="icon-btn" onclick="toggleHistory()">History</button>
             <button class="icon-btn primary" onclick="startNewChat()">+ New Chat</button>

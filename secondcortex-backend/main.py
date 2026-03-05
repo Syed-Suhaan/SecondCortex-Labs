@@ -39,6 +39,7 @@ from agents.retriever import RetrieverAgent
 from auth.jwt_handler import verify_token
 from auth.routes import router as auth_router
 from config import settings
+from models import schemas
 from models.schemas import (
     QueryRequest,
     QueryResponse,
@@ -189,50 +190,50 @@ async def get_events(user_id: str = Depends(get_current_user)):
 
 
 
-@app.get("/api/v1/chat/history", response_model=schemas.ChatHistoryResponse)
+@app.get("/api/v1/chat/history", response_model=ChatHistoryResponse)
 async def get_chat_history(
     session_id: str | None = None,
-    user: dict = Depends(auth_service.get_current_user)
+    user_id: str = Depends(get_current_user)
 ):
     """Retrieve chat history for the current user, optionally filtered by session."""
-    history = user_db.get_chat_history(user["id"], session_id=session_id)
+    history = user_db.get_chat_history(user_id, session_id=session_id)
     return {"messages": history}
 
 
 @app.get("/api/v1/chat/sessions", response_model=schemas.ChatSessionsResponse)
 async def get_chat_sessions(
-    user: dict = Depends(auth_service.get_current_user)
+    user_id: str = Depends(get_current_user)
 ):
     """List all unique chat sessions for the current user."""
-    sessions = user_db.get_chat_sessions(user["id"])
+    sessions = user_db.get_chat_sessions(user_id)
     return {"sessions": sessions}
 
 
 @app.delete("/api/v1/chat/history")
 async def clear_chat_history(
     session_id: str | None = None,
-    user: dict = Depends(auth_service.get_current_user)
+    user_id: str = Depends(get_current_user)
 ):
     """Clear chat history (single session or all)."""
-    user_db.delete_chat_history(user["id"], session_id=session_id)
+    user_db.delete_chat_history(user_id, session_id=session_id)
     return {"message": "History cleared"}
 
 
 @app.post("/api/v1/chat/sessions")
 async def create_chat_session(
     req: dict = Body(...),
-    user: dict = Depends(auth_service.get_current_user)
+    user_id: str = Depends(get_current_user)
 ):
     """Create a new chat session for the current user."""
-    session_id = user_db.create_chat_session(user["id"], title=req.get("title", "New Chat"))
+    session_id = user_db.create_chat_session(user_id, title=req.get("title", "New Chat"))
     return {"session_id": session_id}
 
 
-@app.post("/api/v1/query", response_model=schemas.QueryResponse)
+@app.post("/api/v1/query", response_model=QueryResponse)
 async def handle_query(
-    req: schemas.QueryRequest,
+    req: QueryRequest,
     session_id: str | None = None,
-    user: dict = Depends(auth_service.get_current_user)
+    user_id: str = Depends(get_current_user)
 ):
     """
     Main entry point for SecondCortex queries.
@@ -242,14 +243,14 @@ async def handle_query(
         logger.info("Query received: %s (user=%s, session=%s)", req.question, user["id"], session_id)
 
         # Step 1: Plan — break the question into search tasks
-        plan_result = await planner.plan(req.question, user_id=user["id"])
+        plan_result = await planner.plan(req.question, user_id=user_id)
 
         # Step 2: Execute — synthesize and validate
-        response = await executor.synthesize(request.question, plan_result)
+        response = await executor.synthesize(req.question, plan_result)
 
         # Step 3: Persist history
-        user_db.save_chat_message(user["id"], "user", req.question, session_id=session_id)
-        user_db.save_chat_message(user["id"], "assistant", response.summary, session_id=session_id)
+        user_db.save_chat_message(user_id, "user", req.question, session_id=session_id)
+        user_db.save_chat_message(user_id, "assistant", response.summary, session_id=session_id)
 
         logger.info("Query answered: %s", response.summary[:100])
         return response
