@@ -104,4 +104,9 @@ export class AuthService {
         await this.clearToken();
         this.output.appendLine('[Auth] Logged out.');
     }
+
+    async getUserId(): Promise<string | undefined> {
+        const user = await this.getUser();
+        return user?.userId;
+    }
 }

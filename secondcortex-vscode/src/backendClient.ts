@@ -78,9 +78,12 @@ export class BackendClient {
     /**
      * Ask a natural-language question to the Planner agent.
      */
-    async askQuestion(question: string): Promise<{ summary: string; commands?: unknown[] } | null> {
+    async askQuestion(question: string, sessionId?: string): Promise<{ summary: string; commands?: unknown[] } | null> {
         try {
-            const url = `${this.baseUrl}/api/v1/query`;
+            let url = `${this.baseUrl}/api/v1/query`;
+            if (sessionId) {
+                url += `?session_id=${encodeURIComponent(sessionId)}`;
+            }
             this.output.appendLine(`[BackendClient] POST ${url}`);
 
             const res = await fetch(url, {
@@ -143,9 +146,13 @@ export class BackendClient {
     /**
      * Fetch persistent chat history for the current user.
      */
-    async getChatHistory(): Promise<{ role: string; content: string; timestamp: string }[]> {
+    async getChatHistory(sessionId?: string): Promise<{ role: string; content: string; timestamp: string }[]> {
         try {
-            const res = await fetch(`${this.baseUrl}/api/v1/chat/history`, {
+            let url = `${this.baseUrl}/api/v1/chat/history`;
+            if (sessionId) {
+                url += `?session_id=${encodeURIComponent(sessionId)}`;
+            }
+            const res = await fetch(url, {
                 headers: await this.getHeaders(),
             });
             if (res.status === 401) {
@@ -162,11 +169,36 @@ export class BackendClient {
     }
 
     /**
-     * Clear all chat history for the current user.
+     * Fetch list of chat sessions for the current user.
      */
-    async clearChatHistory(): Promise<boolean> {
+    async getChatSessions(): Promise<{ id: string; title: string; created_at: string }[]> {
         try {
-            const res = await fetch(`${this.baseUrl}/api/v1/chat/history`, {
+            const res = await fetch(`${this.baseUrl}/api/v1/chat/sessions`, {
+                headers: await this.getHeaders(),
+            });
+            if (res.status === 401) {
+                await this.handle401();
+                return [];
+            }
+            if (!res.ok) return [];
+            const data = await res.json() as { sessions: any[] };
+            return data.sessions || [];
+        } catch (err) {
+            this.output.appendLine(`[BackendClient] Network error fetching chat sessions: ${err}`);
+            return [];
+        }
+    }
+
+    /**
+     * Clear chat history (single session or all).
+     */
+    async clearChatHistory(sessionId?: string): Promise<boolean> {
+        try {
+            let url = `${this.baseUrl}/api/v1/chat/history`;
+            if (sessionId) {
+                url += `?session_id=${encodeURIComponent(sessionId)}`;
+            }
+            const res = await fetch(url, {
                 method: 'DELETE',
                 headers: await this.getHeaders(),
             });
@@ -180,5 +212,27 @@ export class BackendClient {
             return false;
         }
     }
-}
 
+    /**
+     * Create a new chat session.
+     */
+    async createChatSession(title: string): Promise<string | null> {
+        try {
+            const res = await fetch(`${this.baseUrl}/api/v1/chat/sessions`, {
+                method: 'POST',
+                headers: await this.getHeaders(),
+                body: JSON.stringify({ title }),
+            });
+            if (res.status === 401) {
+                await this.handle401();
+                return null;
+            }
+            if (!res.ok) return null;
+            const data = await res.json() as { session_id: string };
+            return data.session_id;
+        } catch (err) {
+            this.output.appendLine(`[BackendClient] Network error creating chat session: ${err}`);
+            return null;
+        }
+    }
+}

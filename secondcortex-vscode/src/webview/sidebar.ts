@@ -65,15 +65,17 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
                 }
                 case 'ask': {
                     const question = message.question as string;
-                    this.output.appendLine(`[Sidebar] User asked: ${question}`);
+                    const sessionId = message.sessionId as string | undefined;
+                    this.output.appendLine(`[Sidebar] User asked: ${question} (session: ${sessionId})`);
                     this.postMessage({ type: 'loading' });
 
-                    const response = await this.backend.askQuestion(question);
+                    const response = await this.backend.askQuestion(question, sessionId);
                     if (response && !(response as any)._error) {
                         this.postMessage({
                             type: 'answer',
                             summary: response.summary,
                             commands: response.commands ?? [],
+                            sessionId: sessionId
                         });
                     } else if (response && (response as any)._error) {
                         this.postMessage({
@@ -95,13 +97,24 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
                     break;
                 }
                 case 'getHistory': {
-                    const history = await this.backend.getChatHistory();
-                    this.postMessage({ type: 'history', messages: history });
+                    const history = await this.backend.getChatHistory(message.sessionId);
+                    this.postMessage({ type: 'history', messages: history, sessionId: message.sessionId });
+                    break;
+                }
+                case 'getSessions': {
+                    const sessions = await this.backend.getChatSessions();
+                    this.postMessage({ type: 'sessions', sessions });
                     break;
                 }
                 case 'newChat': {
-                    await this.backend.clearChatHistory();
-                    this.postMessage({ type: 'chatCleared' });
+                    const sessionTitle = message.title || "New Chat";
+                    const newId = await this.backend.createChatSession(sessionTitle);
+                    this.postMessage({ type: 'chatCleared', sessionId: newId });
+                    break;
+                }
+                case 'switchSession': {
+                    const history = await this.backend.getChatHistory(message.sessionId);
+                    this.postMessage({ type: 'history', messages: history, sessionId: message.sessionId });
                     break;
                 }
             }
@@ -371,7 +384,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
             background: rgba(15, 23, 42, 0.7);
             backdrop-filter: blur(12px);
             border-bottom: 1px solid var(--border);
-            z-index: 10;
+            z-index: 20;
         }
         .header h2 {
             font-size: 15px;
@@ -385,11 +398,6 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
             display: flex;
             gap: 8px;
             align-items: center;
-        }
-        .user-info {
-            font-size: 11px;
-            color: var(--text-dim);
-            font-weight: 500;
         }
 
         /* ── Action Buttons ────────────────────────────────── */
@@ -422,6 +430,62 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
             background: var(--accent);
             color: #fff;
             box-shadow: 0 0 16px var(--accent-glow);
+        }
+
+        /* ── History Panel ─────────────────────────────────── */
+        #history-panel {
+            position: absolute;
+            top: 60px;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(2, 6, 23, 0.95);
+            backdrop-filter: blur(20px);
+            z-index: 30;
+            transform: translateX(-100%);
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            padding: 20px;
+            border-right: 1px solid var(--border);
+        }
+        #history-panel.open {
+            transform: translateX(0);
+        }
+        .history-list {
+            margin-top: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            overflow-y: auto;
+            max-height: calc(100vh - 150px);
+        }
+        .history-item {
+            padding: 12px;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .history-item:hover {
+            background: rgba(255, 255, 255, 0.08);
+            border-color: var(--accent);
+        }
+        .history-item.active {
+            border-color: var(--accent);
+            background: rgba(99, 102, 241, 0.1);
+        }
+        .history-item-title {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-main);
+            margin-bottom: 4px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .history-item-date {
+            font-size: 10px;
+            color: var(--text-dim);
         }
 
         /* ── Chat Log ──────────────────────────────────────── */
@@ -540,6 +604,12 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
         }
         #send-btn:active { transform: scale(0.98); }
 
+        .user-info {
+            font-size: 11px;
+            color: var(--text-dim);
+            font-weight: 500;
+        }
+
         /* ── Typography Highlighting ───────────────────────── */
         code {
             background: rgba(255, 255, 255, 0.05);
@@ -552,10 +622,22 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
 </head>
 <body>
     <div class="header">
-        <h2>🧠 SecondCortex</h2>
+        <h2 id="current-title">🧠 SecondCortex</h2>
         <div class="header-actions">
+            <button class="icon-btn" onclick="toggleHistory()">History</button>
             <button class="icon-btn primary" onclick="startNewChat()">+ New Chat</button>
             <button class="icon-btn" onclick="doLogout()">Logout</button>
+        </div>
+    </div>
+
+    <!-- History View -->
+    <div id="history-panel">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <h3 style="font-size: 14px;">Past Chats</h3>
+            <button class="icon-btn" onclick="toggleHistory()">Close</button>
+        </div>
+        <div id="history-list" class="history-list">
+            <!-- Items injected by JS -->
         </div>
     </div>
     
@@ -576,9 +658,38 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
         const chatLog = document.getElementById('chat-log');
         const input = document.getElementById('question-input');
         const sendBtn = document.getElementById('send-btn');
+        const historyPanel = document.getElementById('history-panel');
+        const historyList = document.getElementById('history-list');
 
-        // Initializing history
-        vscode.postMessage({ type: 'getHistory' });
+        // State persistence
+        let state = vscode.getState() || { messages: [], sessionId: null, sessions: [] };
+        
+        // Initial render from state (instant recovery)
+        if (state.messages && state.messages.length > 0) {
+            renderAllMessages(state.messages);
+        } else {
+            addMessage('assistant', 'Welcome! How can I help you today?', true);
+        }
+
+        // Fetch latest from backend to sync
+        vscode.postMessage({ type: 'getHistory', sessionId: state.sessionId });
+        vscode.postMessage({ type: 'getSessions' });
+
+        function saveState() {
+            vscode.setState(state);
+        }
+
+        function renderAllMessages(messages) {
+            chatLog.innerHTML = '';
+            if (messages.length === 0) {
+                addMessage('assistant', 'Welcome! How can I help you today?', true);
+            } else {
+                messages.forEach(m => {
+                    addMessage(m.role, m.content, true);
+                });
+            }
+            chatLog.scrollTop = chatLog.scrollHeight;
+        }
 
         function addMessage(role, text, skipScroll = false) {
             const wrapper = document.createElement('div');
@@ -602,22 +713,55 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
         }
 
         function formatText(t) {
-            // Simple backtick formatting for code
-            return t.replace(/\`([^\`]+)\`/g, '<code>$1</code>');
+            return t.replace(/\\\`([^\\\`]+)\\\`/g, '<code>$1</code>');
+        }
+
+        function toggleHistory() {
+            historyPanel.classList.toggle('open');
+            if (historyPanel.classList.contains('open')) {
+                vscode.postMessage({ type: 'getSessions' });
+            }
         }
 
         function startNewChat() {
-            if (confirm('Reset conversation? All current messages will be archived.')) {
-                vscode.postMessage({ type: 'newChat' });
+            const title = prompt('Chat Title?', 'New Task');
+            if (title) {
+                vscode.postMessage({ type: 'newChat', title });
             }
+        }
+
+        function loadSession(id) {
+            state.sessionId = id;
+            vscode.postMessage({ type: 'switchSession', sessionId: id });
+            toggleHistory();
+        }
+
+        function renderSessions(sessions) {
+            state.sessions = sessions;
+            saveState();
+            historyList.innerHTML = '';
+            sessions.forEach(s => {
+                const item = document.createElement('div');
+                item.className = 'history-item' + (s.id === state.sessionId ? ' active' : '');
+                item.onclick = () => loadSession(s.id);
+                
+                const date = new Date(s.created_at).toLocaleDateString();
+                item.innerHTML = \`
+                    <div class="history-item-title">\${s.title}</div>
+                    <div class="history-item-date">\${date}</div>
+                \`;
+                historyList.appendChild(item);
+            });
         }
 
         function send() {
             const q = input.value.trim();
             if (!q) return;
             addMessage('user', q);
+            state.messages.push({ role: 'user', content: q, timestamp: new Date().toISOString() });
+            saveState();
             input.value = '';
-            vscode.postMessage({ type: 'ask', question: q });
+            vscode.postMessage({ type: 'ask', question: q, sessionId: state.sessionId });
         }
 
         function doLogout() {
@@ -631,24 +775,26 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
 
         window.addEventListener('message', (event) => {
             const msg = event.data;
+            
+            // Clean up any persistence-specific loading UI
             const loadingWrappers = chatLog.querySelectorAll('.loading-wrapper');
             loadingWrappers.forEach(el => el.remove());
 
             switch (msg.type) {
                 case 'history':
-                    chatLog.innerHTML = '';
-                    if (msg.messages.length === 0) {
-                        addMessage('assistant', 'Welcome! How can I help you today?');
-                    } else {
-                        msg.messages.forEach(m => {
-                            addMessage(m.role, m.content, true);
-                        });
-                    }
-                    chatLog.scrollTop = chatLog.scrollHeight;
+                    state.messages = msg.messages;
+                    state.sessionId = msg.sessionId;
+                    renderAllMessages(msg.messages);
+                    saveState();
+                    break;
+                case 'sessions':
+                    renderSessions(msg.sessions);
                     break;
                 case 'chatCleared':
-                    chatLog.innerHTML = '';
-                    addMessage('assistant', 'Context reset. I am ready for a new task.');
+                    state.sessionId = msg.sessionId;
+                    state.messages = [];
+                    renderAllMessages([]);
+                    saveState();
                     break;
                 case 'loading':
                     const loader = document.createElement('div');
@@ -659,6 +805,8 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
                     break;
                 case 'answer':
                     addMessage('assistant', msg.summary);
+                    state.messages.push({ role: 'assistant', content: msg.summary, timestamp: new Date().toISOString() });
+                    saveState();
                     break;
                 case 'error':
                     const errWrapper = document.createElement('div');
