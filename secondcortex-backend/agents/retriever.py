@@ -117,12 +117,15 @@ class RetrieverAgent:
 
         # ── Step 3: On ADD/UPDATE → embed and store in vector DB
         if metadata.operation in (MemoryOperation.ADD, MemoryOperation.UPDATE):
+            logger.info("Attempting to generate embedding for snapshot %s", stored.id)
             embedding = await self.vector_db.generate_embedding(
                 f"{metadata.summary}\n{payload.shadow_graph[:2000]}"
             )
             stored.embedding = embedding
+            logger.info("Generated embedding length: %d. Upserting to Vector DB...", len(embedding) if embedding else 0)
+            
             await self.vector_db.upsert_snapshot(stored, user_id=user_id)
-            logger.info("Stored snapshot %s in Vector DB.", stored.id)
+            logger.info("Finished Vector DB upsert step for %s.", stored.id)
         elif metadata.operation == MemoryOperation.DELETE:
             logger.info("Snapshot marked as rabbit hole — not storing.")
 
