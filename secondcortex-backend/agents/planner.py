@@ -16,10 +16,11 @@ import logging
 from config import settings
 from services.vector_db import VectorDBService
 from services.llm_client import create_gemini_client, get_gemini_model
+from services.rate_limiter import rate_limited_call
 
 logger = logging.getLogger("secondcortex.planner")
 
-MAX_STEPS = 3  # Strict circuit breaker
+MAX_STEPS = 1  # Reduced from 3 to conserve API quota
 
 PLANNER_SYSTEM_PROMPT = """\
 You are the SecondCortex Planner Agent. When a developer asks a question about \
@@ -89,7 +90,8 @@ class PlannerAgent:
     async def _generate_plan(self, question: str) -> dict:
         """Call GPT-4o to decompose the question into search tasks."""
         try:
-            response = self.client.chat.completions.create(
+            response = rate_limited_call(
+                self.client.chat.completions.create,
                 model=get_gemini_model(),
                 messages=[
                     {"role": "system", "content": PLANNER_SYSTEM_PROMPT},

@@ -207,6 +207,16 @@ async def handle_query(
     except Exception as exc:
         import traceback
         err = traceback.format_exc()
+        exc_str = str(exc)
+
+        # Handle Gemini 429 rate limit errors gracefully
+        if "429" in exc_str or "RESOURCE_EXHAUSTED" in exc_str:
+            logger.warning("QUERY RATE LIMITED: %s", exc_str[:200])
+            raise HTTPException(
+                status_code=429,
+                detail="Rate limit reached. The Gemini API free tier quota has been exhausted. Please wait a minute and try again."
+            )
+
         logger.error("QUERY PIPELINE CRASH: %s\n%s", exc, err)
         raise HTTPException(status_code=500, detail=f"Query pipeline error: {str(exc)}")
 

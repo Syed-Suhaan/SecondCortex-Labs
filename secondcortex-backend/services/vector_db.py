@@ -15,6 +15,7 @@ import chromadb
 
 from config import settings
 from services.llm_client import create_llm_client, get_embedding_model, create_gemini_client, get_gemini_embedding_model
+from services.rate_limiter import rate_limited_call
 
 logger = logging.getLogger("secondcortex.vectordb")
 
@@ -58,12 +59,14 @@ class VectorDBService:
         """Generate a text embedding. Uses Gemini by default (free tier), falls back to GPT."""
         try:
             if use_gemini:
-                response = self.gemini_client.embeddings.create(
+                response = rate_limited_call(
+                    self.gemini_client.embeddings.create,
                     model=get_gemini_embedding_model(),
                     input=text[:8000],
                 )
             else:
-                response = self.openai_client.embeddings.create(
+                response = rate_limited_call(
+                    self.openai_client.embeddings.create,
                     model=get_embedding_model(),
                     input=text[:8000],
                 )

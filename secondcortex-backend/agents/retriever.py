@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import json
 import logging
+import time
 import uuid
 from datetime import datetime
 
@@ -28,8 +29,12 @@ from models.schemas import (
 )
 from services.vector_db import VectorDBService
 from services.llm_client import create_gemini_client, get_gemini_model
+from services.rate_limiter import rate_limited_call
 
 logger = logging.getLogger("secondcortex.retriever")
+
+# Minimum seconds between LLM routing calls per user
+RETRIEVER_COOLDOWN_SECONDS = 60
 
 # ── System prompt for the 4-Operation Router ────────────────────
 
@@ -62,6 +67,8 @@ class RetrieverAgent:
         self.vector_db = vector_db
         # Per-user previous snapshot to avoid cross-user contamination
         self._previous_snapshots: dict[str, StoredSnapshot] = {}
+        # Per-user last LLM call timestamp for cooldown
+        self._last_llm_call: dict[str, float] = {}
 
         # Initialize LLM client (GitHub Models or Azure OpenAI)
         self.client = create_gemini_client()
@@ -77,7 +84,22 @@ class RetrieverAgent:
         # ── Step 1: Route the memory operation ──────────────────
         user_key = user_id or "__anonymous__"
         previous = self._previous_snapshots.get(user_key)
-        metadata = await self._route_operation(payload, previous)
+
+        # Cooldown: skip LLM routing if last call was within RETRIEVER_COOLDOWN_SECONDS
+        last_call = self._last_llm_call.get(user_key, 0)
+        elapsed = time.time() - last_call
+
+        if elapsed < RETRIEVER_COOLDOWN_SECONDS and previous is not None:
+            logger.info("Cooldown active (%.0fs < %ds). Skipping LLM routing.",
+                        elapsed, RETRIEVER_COOLDOWN_SECONDS)
+            metadata = MemoryMetadata(
+                operation=MemoryOperation.UPDATE,
+                summary=f"Auto-update (cooldown): editing {payload.active_file}"
+            )
+        else:
+            metadata = await self._route_operation(payload, previous)
+            self._last_llm_call[user_key] = time.time()
+
         logger.info("Operation: %s | Summary: %s", metadata.operation, metadata.summary)
 
         # ── Step 2: Build the stored record ─────────────────────
@@ -131,7 +153,8 @@ class RetrieverAgent:
         )
 
         try:
-            response = self.client.chat.completions.create(
+            response = rate_limited_call(
+                self.client.chat.completions.create,
                 model=get_gemini_model(),
                 messages=[
                     {"role": "system", "content": ROUTER_SYSTEM_PROMPT},

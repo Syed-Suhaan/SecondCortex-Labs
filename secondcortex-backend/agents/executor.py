@@ -17,8 +17,12 @@ import logging
 from agents.planner import PlanResult
 from models.schemas import QueryResponse, ResurrectionCommand
 from services.llm_client import create_gemini_client, get_gemini_model
+from services.rate_limiter import rate_limited_call
 
 logger = logging.getLogger("secondcortex.executor")
+
+# Set to True to enable the internal validation loop (costs 1 extra LLM call per query)
+ENABLE_VALIDATION = False
 
 EXECUTOR_SYSTEM_PROMPT = """\
 You are the SecondCortex Executor Agent. You receive retrieved context \
@@ -99,11 +103,14 @@ class ExecutorAgent:
         # ── Step 2: Draft the answer ─────────────────────────────
         draft = await self._generate_draft(question, context_block)
 
-        # ── Step 3: Internal Validation Loop ─────────────────────
-        validation = await self._validate_draft(question, draft, context_block)
-
+        # ── Step 3: Internal Validation Loop (disabled to save API quota) ──
         confidence = draft.get("confidence", 0.5)
-        revised_confidence = validation.get("revised_confidence", confidence)
+        if ENABLE_VALIDATION:
+            validation = await self._validate_draft(question, draft, context_block)
+            revised_confidence = validation.get("revised_confidence", confidence)
+        else:
+            validation = {"is_valid": True, "issues": [], "revised_confidence": confidence}
+            revised_confidence = confidence
 
         # Log discrepancies visibly
         issues = validation.get("issues", [])
@@ -140,7 +147,8 @@ class ExecutorAgent:
     async def _generate_draft(self, question: str, context: str) -> dict:
         """Call LLM to draft the answer."""
         try:
-            response = self.client.chat.completions.create(
+            response = rate_limited_call(
+                self.client.chat.completions.create,
                 model=get_gemini_model(),
                 messages=[
                     {"role": "system", "content": EXECUTOR_SYSTEM_PROMPT},
@@ -158,7 +166,8 @@ class ExecutorAgent:
     async def _validate_draft(self, question: str, draft: dict, context: str) -> dict:
         """Internal Validation Loop — checks draft against the evidence."""
         try:
-            response = self.client.chat.completions.create(
+            response = rate_limited_call(
+                self.client.chat.completions.create,
                 model=get_gemini_model(),
                 messages=[
                     {"role": "system", "content": VALIDATION_PROMPT},
