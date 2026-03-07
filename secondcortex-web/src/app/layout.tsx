@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist, Geist_Mono, Instrument_Serif } from "next/font/google";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -12,9 +12,17 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+const instrumentSerif = Instrument_Serif({
+  variable: "--font-serif",
+  subsets: ["latin"],
+  weight: ["400"],
+  style: ["normal", "italic"],
+});
+
 export const metadata: Metadata = {
-  title: "SecondCortex — Live Context Graph",
-  description: "Real-time visualization of the SecondCortex agent reasoning network.",
+  title: "SecondCortex — AI-Powered Development Companion",
+  description:
+    "SecondCortex tracks your coding context in real time, giving your AI tools the memory they need to truly understand your workflow.",
 };
 
 export default function RootLayout({
@@ -25,7 +33,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        className={`${geistSans.variable} ${geistMono.variable} ${instrumentSerif.variable} antialiased`}
       >
         {children}
       </body>
