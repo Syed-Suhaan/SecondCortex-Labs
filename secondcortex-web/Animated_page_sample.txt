@@ -1,0 +1,257 @@
+To recreate the highly interactive, scroll-driven, and minimalist aesthetic of the "Anomaly" landing page shown in the video, you will need a specific tech stack. Since you want to use Shadcn UI, we will build this around a React/Next.js environment.
+
+Here is the blueprint and the code to achieve this effect.
+
+The Tech Stack
+
+Framework: Next.js (App Router recommended) or React.
+
+Styling: Tailwind CSS (Required for Shadcn).
+
+UI Components: Shadcn UI (for buttons, cards, etc.).
+
+Animations & Interactions: Framer Motion (This is the secret sauce for the custom cursor, scroll progress, parallax floating squares, and smooth fade-ins).
+
+Step 1: Setup & Installation
+
+If you haven't already, install Framer Motion and setup Shadcn:
+
+code
+Bash
+download
+content_copy
+expand_less
+npm install framer-motion
+npx shadcn-ui@latest init
+npx shadcn-ui@latest add button
+Step 2: The Custom Square Cursor
+
+The video features a white square that replaces the standard mouse cursor.
+
+Create a component called CustomCursor.tsx. We use Framer Motion to make it follow the mouse smoothly.
+
+code
+Tsx
+download
+content_copy
+expand_less
+"use client";
+import { useEffect, useState } from "react";
+import { motion } from "framer-motion";
+
+export default function CustomCursor() {
+  const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
+
+  useEffect(() => {
+    const updateMousePosition = (e: MouseEvent) => {
+      setMousePosition({ x: e.clientX, y: e.clientY });
+    };
+    window.addEventListener("mousemove", updateMousePosition);
+    return () => window.removeEventListener("mousemove", updateMousePosition);
+  }, []);
+
+  return (
+    <motion.div
+      className="fixed top-0 left-0 w-6 h-6 bg-white mix-blend-difference z-[9999] pointer-events-none"
+      animate={{
+        x: mousePosition.x - 12, // Offset by half width to center
+        y: mousePosition.y - 12,
+      }}
+      transition={{ type: "tween", ease: "backOut", duration: 0.1 }}
+    />
+  );
+}
+
+Note: Add cursor-none to your global <body> class in your CSS to hide the default cursor.
+
+Step 3: Scroll Progress & Sticky Footer
+
+The video has a footer that sticks to the bottom, showing coordinates, buttons, and a scroll percentage.
+
+code
+Tsx
+download
+content_copy
+expand_less
+"use client";
+import { Button } from "@/components/ui/button"; // Shadcn component
+import { motion, useScroll, useMotionValueEvent } from "framer-motion";
+import { useState } from "react";
+
+export default function StickyFooter() {
+  const { scrollYProgress } = useScroll();
+  const [progress, setProgress] = useState(0);
+
+  useMotionValueEvent(scrollYProgress, "change", (latest) => {
+    setProgress(Math.round(latest * 100));
+  });
+
+  return (
+    <div className="fixed bottom-0 left-0 w-full p-6 flex justify-between items-center text-xs tracking-widest text-white mix-blend-difference z-50">
+      <div>[1.2753° N, 103.8459° E]</div>
+      <div className="flex gap-4">
+        {/* Shadcn Buttons styled to match the aesthetic */}
+        <Button variant="outline" className="rounded-full bg-white text-black hover:bg-gray-200 border-none px-6">
+          Contact us
+        </Button>
+        <Button variant="outline" className="rounded-full bg-white text-black hover:bg-gray-200 border-none px-6">
+          Media Kit
+        </Button>
+      </div>
+      <div>{progress}% Complete</div>
+    </div>
+  );
+}
+Step 4: Parallax Floating Squares
+
+In the background, white squares float at different speeds as you scroll.
+
+code
+Tsx
+download
+content_copy
+expand_less
+"use client";
+import { motion, useScroll, useTransform } from "framer-motion";
+
+export default function FloatingSquares() {
+  const { scrollYProgress } = useScroll();
+  
+  // Parallax effects for different squares
+  const y1 = useTransform(scrollYProgress, [0, 1], [0, -500]);
+  const y2 = useTransform(scrollYProgress, [0, 1], [0, -800]);
+  const y3 = useTransform(scrollYProgress, [0, 1], [0, -300]);
+
+  return (
+    <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
+      <motion.div style={{ y: y1 }} className="absolute top-[20%] left-[10%] w-8 h-8 bg-white opacity-80" />
+      <motion.div style={{ y: y2 }} className="absolute top-[60%] right-[20%] w-12 h-12 bg-white opacity-90" />
+      <motion.div style={{ y: y3 }} className="absolute top-[80%] left-[30%] w-4 h-4 bg-white opacity-50" />
+      {/* Add more squares as needed */}
+    </div>
+  );
+}
+Step 5: Scroll-Triggered Text Sections
+
+To make the text fade up smoothly as the user scrolls down, create a reusable wrapper.
+
+code
+Tsx
+download
+content_copy
+expand_less
+"use client";
+import { motion } from "framer-motion";
+
+export default function FadeInSection({ children }: { children: React.ReactNode }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 50 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: false, margin: "-100px" }}
+      transition={{ duration: 0.8, ease: "easeOut" }}
+      className="min-h-screen flex flex-col justify-center items-center text-center px-4 z-10 relative"
+    >
+      {children}
+    </motion.div>
+  );
+}
+Step 6: The Interactive Logo (End Section)
+
+At the end of the video, the background turns white, and a black logo reacts to the mouse.
+
+code
+Tsx
+download
+content_copy
+expand_less
+"use client";
+import { motion, useMotionValue, useTransform } from "framer-motion";
+
+export default function InteractiveLogo() {
+  const x = useMotionValue(0);
+  const y = useMotionValue(0);
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    // Calculate distance from center of screen
+    const offsetX = e.clientX - window.innerWidth / 2;
+    const offsetY = e.clientY - window.innerHeight / 2;
+    
+    // Dampen the movement
+    x.set(offsetX / 10);
+    y.set(offsetY / 10);
+  };
+
+  return (
+    <div 
+      className="min-h-screen bg-white text-black flex justify-center items-center relative z-20"
+      onMouseMove={handleMouseMove}
+    >
+      <motion.div 
+        style={{ x, y }} 
+        className="w-64 h-64 bg-black" 
+        style={{ 
+          clipPath: "polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%)" // Example shape
+        }}
+      >
+        {/* Replace this div with your actual SVG logo paths, applying the same x/y motion values to specific paths for a "morphing/shifting" effect */}
+      </motion.div>
+    </div>
+  );
+}
+Bringing it all together in your Main Page (page.tsx)
+code
+Tsx
+download
+content_copy
+expand_less
+import CustomCursor from "@/components/CustomCursor";
+import StickyFooter from "@/components/StickyFooter";
+import FloatingSquares from "@/components/FloatingSquares";
+import FadeInSection from "@/components/FadeInSection";
+import InteractiveLogo from "@/components/InteractiveLogo";
+
+export default function Home() {
+  return (
+    <main className="bg-black text-white cursor-none selection:bg-white selection:text-black">
+      <CustomCursor />
+      <FloatingSquares />
+      
+      {/* Section 1 */}
+      <FadeInSection>
+        <span className="text-xs uppercase tracking-widest mb-4">[Biology At Scale]</span>
+        <h1 className="text-5xl md:text-7xl font-serif mb-6 max-w-4xl leading-tight">
+          A step change from current extraction-based methods
+        </h1>
+        <p className="max-w-xl text-gray-400">
+          We focus on producing functional ingredients using advanced fermentation...
+        </p>
+      </FadeInSection>
+
+      {/* Section 2: Investors Grid */}
+      <FadeInSection>
+        <h2 className="text-4xl font-serif mb-12">Investors</h2>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
+           {/* Map through your investors here */}
+           <div>
+             <h3 className="font-bold">Pebblebed</h3>
+             <p className="text-sm text-gray-400">San Francisco, CA</p>
+           </div>
+           {/* ... */}
+        </div>
+      </FadeInSection>
+
+      {/* Final Section (White background) */}
+      <InteractiveLogo />
+
+      <StickyFooter />
+    </main>
+  );
+}
+Key Tips for the "Premium" Feel:
+
+Typography is everything: The video uses a very specific mix of a high-contrast Serif font (like Playfair Display or Instrument Serif) for headers and a mono/sans-serif font (like Geist Mono or Inter) for small text/labels. Configure these in your tailwind.config.ts.
+
+Mix-Blend-Mode: Notice in StickyFooter and CustomCursor, I used mix-blend-difference. This ensures that when the cursor or footer goes over a white background (like the final section), it automatically turns black, and vice versa.
+
+Shadcn Styling: Shadcn components are fully customizable via Tailwind. Override the default Button styles as shown above to make them pill-shaped (rounded-full) and monochromatic to fit this specific brand identity.
