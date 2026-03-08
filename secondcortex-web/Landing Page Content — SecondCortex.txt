@@ -1,0 +1,254 @@
+Landing Page Content — SecondCortex
+1. Hero Section
+
+Headline
+
+SecondCortex
+
+A new layer for developer cognition.
+
+Subtext
+
+Your tools know the code.
+SecondCortex understands the context behind it.
+
+Capture development signals.
+Structure them into a living knowledge layer.
+
+CTA
+
+Explore the System
+Request Access
+
+Interactive Idea
+
+Background visualization:
+
+A slowly evolving node graph where nodes appear as:
+
+files
+events
+states
+relations
+
+But never fully explained.
+
+Hover → nodes pulse.
+
+2. Short Identity Section
+What is SecondCortex
+
+SecondCortex is a developer context engine.
+
+It observes development activity and constructs a structured layer of signals describing how software evolves.
+
+Not logs.
+Not telemetry.
+
+Something more structural.
+
+Something closer to reasoning traces.
+
+3. The Signal Layer
+Development produces signals.
+
+SecondCortex captures fragments such as:
+
+workspace state
+code structures
+task transitions
+execution artifacts
+environment changes
+
+These signals are transformed into a temporal knowledge structure.
+
+This structure becomes queryable.
+
+But what exactly happens inside the system?
+
+Explore to find out.
+4. Architecture Hint (Not Full Reveal)
+A multi-stage cognitive pipeline
+
+SecondCortex processes development activity through a layered architecture.
+
+signal capture
+context modeling
+semantic indexing
+reasoning synthesis
+
+Each stage transforms raw activity into structured intelligence.
+
+We intentionally keep the deeper mechanics opaque.
+
+For now.
+
+5. Interactive Graph Section
+A Living Context Graph
+
+Every development session generates a dynamic topology of relationships.
+
+Nodes represent evolving artifacts.
+
+Edges represent relationships between them.
+
+Examples may include:
+
+dependencies
+transitions
+inferred associations
+execution traces
+
+The graph continuously reshapes as work progresses.
+
+No manual tagging required.
+
+6. Temporal Navigation
+Development is not linear.
+
+SecondCortex organizes signals across time.
+
+Meaning context can be navigated through:
+
+states
+sessions
+branches
+timelines
+
+You can move through the history of your work like exploring a map.
+
+But the deeper mechanics remain hidden.
+
+For now.
+
+7. Developer Queries
+Ask questions about your system.
+
+SecondCortex enables structured queries over development context.
+
+Examples:
+
+What changed in the last debugging session?
+
+Where did this behavior originate?
+
+Which components interacted during the last build failure?
+
+Answers are synthesized from structured signals rather than raw logs.
+
+8. Minimal Technical Layer
+Designed for developer environments
+
+SecondCortex operates alongside development workflows.
+
+It integrates with:
+
+local workspaces
+development environments
+versioned codebases
+execution pipelines
+
+The system remains lightweight while building a continuously evolving context layer.
+
+9. Mystery Section
+What we are building
+
+SecondCortex is not:
+
+a code assistant
+a static knowledge base
+a monitoring tool
+
+It is something else entirely.
+
+A system that understands how development actually happens.
+
+We are still revealing the architecture piece by piece.
+
+10. Explore Section
+
+Dive deeper
+
+Architecture
+Research
+Developer Preview
+
+Each link opens a deeper technical explanation.
+
+But never the entire system at once.
+
+11. Final Section
+
+SecondCortex
+
+Building infrastructure for developer cognition.
+
+Explore
+Request Access
+Design Tips (Very Important)
+
+To create mystery + deep tech vibe, your UI should include:
+
+1️⃣ Moving context graph
+
+Your ContextGraph.tsx can animate nodes slowly appearing.
+
+2️⃣ Low-contrast technical typography
+
+Like:
+
+signal
+context
+structure
+reasoning
+state
+
+floating subtly in the background.
+
+3️⃣ Scroll discovery
+
+Each scroll reveals one more layer.
+
+Never everything.
+
+4️⃣ Hidden hover hints
+
+Hovering architecture nodes reveals cryptic labels like:
+
+temporal index
+context layer
+reasoning kernel
+signal extractor
+
+but no explanation.
+
+5️⃣ Black / deep space UI
+
+Think:
+
+OpenAI
+Linear
+Vercel
+Anthropic
+
+Minimal but powerful.
+
+Tone Guide (Important)
+
+Always use language like:
+
+signals
+context
+structures
+states
+relations
+temporal systems
+
+Avoid saying:
+
+LLM agents
+vector DB
+embeddings
+snapshots
+
+Those are internal architecture secrets.

@@ -4,16 +4,17 @@ import { motion } from "framer-motion";
 interface FadeInSectionProps {
     children: React.ReactNode;
     className?: string;
+    delay?: number;
 }
 
-export default function FadeInSection({ children, className = "" }: FadeInSectionProps) {
+export default function FadeInSection({ children, className = "", delay = 0 }: FadeInSectionProps) {
     return (
         <motion.div
-            initial={{ opacity: 0, y: 60 }}
+            initial={{ opacity: 0, y: 30 }}
             whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: false, margin: "-100px" }}
-            transition={{ duration: 0.8, ease: "easeOut" }}
-            className={`min-h-screen flex flex-col justify-center items-center text-center px-6 z-10 relative ${className}`}
+            viewport={{ once: true, margin: "-80px" }}
+            transition={{ duration: 0.7, ease: "easeOut", delay }}
+            className={className}
         >
             {children}
         </motion.div>

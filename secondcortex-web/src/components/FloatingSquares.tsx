@@ -12,13 +12,23 @@ const squares = [
     { top: "15%", left: "40%", size: "w-4 h-4", speed: [-800] as [number], opacity: 0.2 },
 ];
 
-function FloatingSquare({
+const technicalTerms = [
+    { text: "signal", top: "20%", left: "15%", speed: [-300] as [number] },
+    { text: "context", top: "40%", right: "20%", speed: [-500] as [number] },
+    { text: "structure", top: "60%", left: "10%", speed: [-400] as [number] },
+    { text: "reasoning", top: "15%", right: "10%", speed: [-600] as [number] },
+    { text: "state", top: "80%", left: "30%", speed: [-250] as [number] },
+    { text: "relation", top: "45%", right: "40%", speed: [-450] as [number] },
+    { text: "temporal", top: "70%", right: "15%", speed: [-550] as [number] },
+];
+
+function FloatingElement({
+    children,
     style,
-    className,
     speed,
 }: {
+    children: React.ReactNode;
     style: React.CSSProperties;
-    className: string;
     speed: [number];
 }) {
     const { scrollYProgress } = useScroll();
@@ -27,26 +37,48 @@ function FloatingSquare({
     return (
         <motion.div
             style={{ ...style, y }}
-            className={`absolute bg-white/80 ${className}`}
-        />
+            className="absolute"
+        >
+            {children}
+        </motion.div>
     );
 }
 
 export default function FloatingSquares() {
     return (
         <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
+            {/* Background Squares */}
             {squares.map((sq, i) => (
-                <FloatingSquare
-                    key={i}
+                <FloatingElement
+                    key={`sq-${i}`}
                     style={{
                         top: sq.top,
                         left: sq.left,
-                        right: (sq as Record<string, unknown>).right as string | undefined,
+                        right: (sq as any).right,
                         opacity: sq.opacity,
                     }}
-                    className={sq.size}
                     speed={sq.speed}
-                />
+                >
+                    <div className={`bg-white/80 ${sq.size}`} />
+                </FloatingElement>
+            ))}
+
+            {/* Technical Typography Layer */}
+            {technicalTerms.map((term, i) => (
+                <FloatingElement
+                    key={`term-${i}`}
+                    style={{
+                        top: term.top,
+                        left: term.left,
+                        right: (term as any).right,
+                        opacity: 0.07, // Low contrast for mystery/premium feel
+                    }}
+                    speed={term.speed}
+                >
+                    <span className="text-[10px] uppercase tracking-[0.5em] font-mono text-white whitespace-nowrap">
+                        {term.text}
+                    </span>
+                </FloatingElement>
             ))}
         </div>
     );

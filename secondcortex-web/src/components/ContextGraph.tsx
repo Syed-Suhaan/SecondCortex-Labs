@@ -3,17 +3,12 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
     ReactFlow,
-    Background,
-    Controls,
-    MiniMap,
     useNodesState,
     useEdgesState,
     addEdge,
     type Node,
     type Edge,
     type Connection,
-    MarkerType,
-    BackgroundVariant,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import * as d3 from 'd3-force';
@@ -30,53 +25,50 @@ interface SnapshotEvent {
     relations: Array<{ source: string; target: string; relation: string }>;
 }
 
-// ── Node styling ──────────────────────────────────────────────
-
+// ── Mystery Node Styling ──────────────────────────────────────
 const NODE_STYLES: Record<string, React.CSSProperties> = {
     commit: {
-        background: '#667eea',
+        background: 'rgba(255, 255, 255, 0.05)',
         color: '#fff',
-        border: '1px solid rgba(255,255,255,0.2)',
-        borderRadius: '12px',
-        padding: '12px 18px',
-        fontSize: '13px',
-        fontWeight: 600,
-        textWrap: 'balance',
+        border: '1px solid rgba(255,255,255,0.1)',
+        borderRadius: '2px',
+        padding: '8px 12px',
+        fontSize: '10px',
+        fontWeight: 400,
+        fontFamily: 'var(--font-mono)',
+        textTransform: 'uppercase',
+        letterSpacing: '0.1em',
     },
     file: {
-        background: '#f5576c',
-        color: '#fff',
-        border: '1px solid rgba(255,255,255,0.2)',
-        borderRadius: '10px',
-        padding: '12px 16px',
-        fontSize: '13px',
-        fontWeight: 600,
-        textWrap: 'balance',
+        background: 'rgba(255, 255, 255, 0.03)',
+        color: 'rgba(255,255,255,0.7)',
+        border: '1px solid rgba(255,255,255,0.05)',
+        borderRadius: '2px',
+        padding: '6px 10px',
+        fontSize: '10px',
+        fontFamily: 'var(--font-mono)',
     },
     entity: {
-        background: '#0f172a',
-        color: '#38bdf8',
-        border: '1px solid rgba(56, 189, 248, 0.4)',
-        borderRadius: '8px',
-        padding: '8px 14px',
-        fontSize: '12px',
-        fontWeight: 500,
-        textWrap: 'balance',
+        background: 'transparent',
+        color: 'rgba(255,255,255,0.4)',
+        border: '1px solid rgba(255,255,255,0.03)',
+        borderRadius: '0px',
+        padding: '4px 8px',
+        fontSize: '9px',
+        fontFamily: 'var(--font-mono)',
     },
     reasoning: {
-        background: '#10b981',
-        color: '#ecfdf5',
-        border: '1px solid rgba(255,255,255,0.3)',
-        borderRadius: '16px',
-        padding: '16px 20px',
-        fontSize: '14px',
-        fontWeight: 600,
-        textWrap: 'balance',
-        maxWidth: 280,
+        background: 'rgba(255, 255, 255, 0.08)',
+        color: '#fff',
+        border: '1px solid rgba(255,255,255,0.2)',
+        borderRadius: '4px',
+        padding: '12px 16px',
+        fontSize: '11px',
+        fontWeight: 500,
+        maxWidth: 200,
+        boxShadow: '0 0 20px rgba(255,255,255,0.05)',
     },
 };
-
-// ── Main Component ──────────────────────────────────────────────
 
 interface ContextGraphProps {
     backendUrl?: string;
@@ -85,15 +77,12 @@ interface ContextGraphProps {
 
 export default function ContextGraph({
     backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'https://sc-backend-suhaan.azurewebsites.net',
-    pollIntervalMs = 3000,
+    pollIntervalMs = 5000, // Slower polling for landing page
 }: ContextGraphProps) {
     const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
     const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
-    const [isConnected, setIsConnected] = useState(false);
-    const [lastEvent, setLastEvent] = useState<string>('Waiting for events…');
+    const [hoveredNode, setHoveredNode] = useState<string | null>(null);
     const seenEventsRef = useRef(new Set<string>());
-
-    // D3 Force Simulation logic
     const simulationRef = useRef<d3.Simulation<any, any> | null>(null);
 
     const onConnect = useCallback(
@@ -101,38 +90,44 @@ export default function ContextGraph({
         [setEdges]
     );
 
-    // Run force simulation whenever nodes or edges update structurally
+    // Initial dummy data for visual filler if no backend
+    useEffect(() => {
+        if (nodes.length === 0) {
+            const initialNodes: Node[] = [
+                { id: 'kernel', data: { label: 'reasoning kernel' }, position: { x: 0, y: 0 }, style: NODE_STYLES.reasoning },
+                { id: 'signal-1', data: { label: 'signal extractor' }, position: { x: 100, y: 50 }, style: NODE_STYLES.commit },
+                { id: 'layer-1', data: { label: 'context layer' }, position: { x: -100, y: -50 }, style: NODE_STYLES.commit },
+            ];
+            const initialEdges: Edge[] = [
+                { id: 'e1', source: 'kernel', target: 'signal-1', animated: true, style: { stroke: 'rgba(255,255,255,0.1)' } },
+                { id: 'e2', source: 'kernel', target: 'layer-1', animated: true, style: { stroke: 'rgba(255,255,255,0.1)' } },
+            ];
+            setNodes(initialNodes);
+            setEdges(initialEdges);
+        }
+    }, [nodes.length, setNodes, setEdges]);
+
+    // Force Simulation logic
     useEffect(() => {
         if (nodes.length === 0) return;
 
-        // Start Force Simulation from Center
         const simNodes = nodes.map((n) => ({ ...n, x: n.position.x, y: n.position.y }));
-
-        // Ensure edges only reference existing nodes (prevents D3 "node not found" crashes during async renders)
         const nodeIds = new Set(simNodes.map(n => n.id));
         const simLinks = edges
             .filter(e => nodeIds.has(e.source) && nodeIds.has(e.target))
             .map((e) => ({ source: e.source, target: e.target, id: e.id }));
 
         const simulation = d3.forceSimulation(simNodes)
-            // Gentler outward repulsion so nodes don't violently explode
-            .force('charge', d3.forceManyBody().strength(-400).distanceMax(800))
-            // Softer, longer links so the graph breathes
-            .force('link', d3.forceLink(simLinks).id((d: any) => d.id).distance(160).strength(0.4))
-            // Very soft gravity to center
-            .force('center', d3.forceCenter(0, 0).strength(0.02))
-            // Stricter collision so they don't overlap and vibrate
-            .force('collide', d3.forceCollide().radius((d: any) => {
-                const label = d.data?.label || '';
-                return Math.max(90, label.length * 6);
-            }).iterations(4))
-            // Lower initial heat and fast decay makes it drift beautifully into place then freeze
-            .alpha(0.3)
-            .alphaDecay(0.04)
+            .force('charge', d3.forceManyBody().strength(-150).distanceMax(500))
+            .force('link', d3.forceLink(simLinks).id((d: any) => d.id).distance(150).strength(0.2))
+            .force('center', d3.forceCenter(0, 0).strength(0.01))
+            .force('collide', d3.forceCollide().radius(90).iterations(2))
+            .alpha(0.1) // Lower alpha for slower evolution
+            .alphaDecay(0.01) // Very slow decay
+            .velocityDecay(0.6) // More friction for "heavy" feel
             .restart();
 
         simulation.on('tick', () => {
-            // Update React Flow nodes on every physics tick for beautiful animation
             setNodes((currentNodes) =>
                 currentNodes.map((n) => {
                     const simNode = simNodes.find((sn) => sn.id === n.id);
@@ -148,20 +143,11 @@ export default function ContextGraph({
         });
 
         simulationRef.current = simulation;
-
-        return () => {
-            simulation.stop();
-        };
-        // We explicitly do NOT want to re-run this effect on every tick, only when arrays change length.
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [nodes.length, edges.length]);
-
-    // ── Process new events incrementally ────────────────────────
+        return () => { simulation.stop(); };
+    }, [nodes.length, edges.length, setNodes]);
 
     const processEvents = useCallback(
         (events: SnapshotEvent[]) => {
-            let hasNew = false;
-
             setNodes((currentNodes) => {
                 const updatedNodes = [...currentNodes];
                 const newEdgesLocal: Edge[] = [];
@@ -170,76 +156,28 @@ export default function ContextGraph({
                 events.forEach((event) => {
                     if (seenEventsRef.current.has(event.id)) return;
                     seenEventsRef.current.add(event.id);
-                    hasNew = true;
 
-                    // 1. File Node (Deduplicated)
                     const activeFile = event.active_file || 'unknown';
                     const fileName = activeFile.split(/[/\\]/).pop() ?? activeFile;
                     const fileNodeId = `file-${fileName}`;
+
                     if (!nodeMap.has(fileNodeId)) {
                         const fileNode: Node = {
                             id: fileNodeId,
-                            data: { label: `📁 ${fileName}` },
-                            // Spawn new nodes near center (0,0) to grow outwards
-                            position: { x: (Math.random() - 0.5) * 50, y: (Math.random() - 0.5) * 50 },
+                            data: { label: fileName },
+                            position: { x: (Math.random() - 0.5) * 100, y: (Math.random() - 0.5) * 100 },
                             style: NODE_STYLES.file,
                         };
                         nodeMap.set(fileNodeId, fileNode);
                         updatedNodes.push(fileNode);
                     }
 
-                    // 2. Branch Node (Deduplicated)
-                    if (event.git_branch) {
-                        const branchNodeId = `branch-${event.git_branch}`;
-                        if (!nodeMap.has(branchNodeId)) {
-                            const branchNode: Node = {
-                                id: branchNodeId,
-                                data: { label: `🌿 ${event.git_branch}` },
-                                position: { x: (Math.random() - 0.5) * 50, y: (Math.random() - 0.5) * 50 },
-                                style: NODE_STYLES.commit,
-                            };
-                            nodeMap.set(branchNodeId, branchNode);
-                            updatedNodes.push(branchNode);
-                        }
-
-                        newEdgesLocal.push({
-                            id: `e-${branchNodeId}-${fileNodeId}-${event.id}`, // Add event ID so edges aren't exactly duplicates if redrawn
-                            source: branchNodeId,
-                            target: fileNodeId,
-                            animated: true,
-                            style: { stroke: 'rgba(102, 126, 234, 0.8)', strokeWidth: 2 },
-                        });
-                    }
-
-                    // 3. Entity Nodes (Deduplicated)
-                    event.entities?.forEach((entity) => {
-                        const entityNodeId = `entity-${entity}`;
-                        if (!nodeMap.has(entityNodeId)) {
-                            const entityNode: Node = {
-                                id: entityNodeId,
-                                data: { label: `⚡ ${entity}` },
-                                position: { x: (Math.random() - 0.5) * 50, y: (Math.random() - 0.5) * 50 },
-                                style: NODE_STYLES.entity,
-                            };
-                            nodeMap.set(entityNodeId, entityNode);
-                            updatedNodes.push(entityNode);
-                        }
-
-                        newEdgesLocal.push({
-                            id: `e-${fileNodeId}-${entityNodeId}`,
-                            source: fileNodeId,
-                            target: entityNodeId,
-                            style: { stroke: 'rgba(56, 189, 248, 0.5)', strokeDasharray: '4,6', strokeWidth: 1.5 },
-                        });
-                    });
-
-                    // 4. Reasoning/Event Node (Unique per event)
                     if (event.summary) {
                         const reasoningNodeId = `reason-${event.id}`;
                         const reasoningNode: Node = {
                             id: reasoningNodeId,
-                            data: { label: `🧠 ${event.summary}` },
-                            position: { x: (Math.random() - 0.5) * 50, y: (Math.random() - 0.5) * 50 },
+                            data: { label: event.summary },
+                            position: { x: (Math.random() - 0.5) * 100, y: (Math.random() - 0.5) * 100 },
                             style: NODE_STYLES.reasoning,
                         };
                         nodeMap.set(reasoningNodeId, reasoningNode);
@@ -250,14 +188,12 @@ export default function ContextGraph({
                             source: fileNodeId,
                             target: reasoningNodeId,
                             animated: true,
-                            style: { stroke: '#10b981', strokeWidth: 2.5 },
+                            style: { stroke: 'rgba(255,255,255,0.1)', strokeWidth: 1 },
                         });
                     }
-
-                    setLastEvent(`${new Date().toLocaleTimeString()} — ${event.summary || (event.active_file ? (event.active_file.split(/[/\\]/).pop()) : 'Activity')}`);
                 });
 
-                if (hasNew) {
+                if (newEdgesLocal.length > 0) {
                     setEdges((currentEdges) => {
                         const edgeMap = new Map<string, Edge>(currentEdges.map(e => [e.id, e]));
                         newEdgesLocal.forEach(e => edgeMap.set(e.id, e));
@@ -271,186 +207,57 @@ export default function ContextGraph({
         [setNodes, setEdges]
     );
 
-    // ── Poll the backend ────────────────────────────────────────
-
     useEffect(() => {
         let active = true;
-
         const poll = async () => {
             try {
                 const res = await fetch(`${backendUrl}/api/v1/events`);
                 if (res.ok) {
-                    setIsConnected(true);
                     const data = await res.json();
-                    if (Array.isArray(data.events)) {
-                        processEvents(data.events);
-                    }
-                } else {
-                    setIsConnected(false);
+                    if (active && Array.isArray(data.events)) processEvents(data.events);
                 }
-            } catch {
-                setIsConnected(false);
-            }
+            } catch { }
         };
-
-        const interval = setInterval(() => {
-            if (active) poll();
-        }, pollIntervalMs);
-
-        poll(); // initial
-
-        return () => {
-            active = false;
-            clearInterval(interval);
-        };
+        const interval = setInterval(() => active && poll(), pollIntervalMs);
+        poll();
+        return () => { active = false; clearInterval(interval); };
     }, [backendUrl, pollIntervalMs, processEvents]);
 
     return (
-        <div style={{ width: '100%', height: '100vh', background: '#020617' }}>
-            {/* Status bar */}
-            <div
-                style={{
-                    position: 'absolute',
-                    top: 24,
-                    left: 24,
-                    zIndex: 10,
-                    display: 'flex',
-                    gap: 16,
-                    alignItems: 'center',
-                }}
-            >
-                <div
-                    style={{
-                        background: 'rgba(15, 23, 42, 0.95)',
-                        border: '1px solid rgba(255,255,255,0.08)',
-                        borderRadius: 16,
-                        padding: '12px 20px',
-                        color: '#f8fafc',
-                        fontSize: 14,
-                        fontWeight: 500,
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 10,
-                    }}
-                >
-                    <span
-                        style={{
-                            width: 10,
-                            height: 10,
-                            borderRadius: '50%',
-                            background: isConnected ? '#10b981' : '#ef4444',
-                        }}
-                    />
-                    {isConnected ? 'Syncing Context' : 'Offline'}
-                </div>
-                <div
-                    style={{
-                        background: 'rgba(15, 23, 42, 0.95)',
-                        border: '1px solid rgba(255,255,255,0.08)',
-                        borderRadius: 16,
-                        padding: '12px 24px',
-                        color: '#cbd5e1',
-                        fontSize: 14,
-                        maxWidth: 500,
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap',
-                    }}
-                >
-                    {lastEvent}
-                </div>
-            </div>
-
-            {/* Title */}
-            <div
-                style={{
-                    position: 'absolute',
-                    top: 24,
-                    right: 24,
-                    zIndex: 10,
-                    background: 'rgba(15, 23, 42, 0.95)',
-                    border: '1px solid rgba(255,255,255,0.08)',
-                    borderRadius: 16,
-                    padding: '16px 24px',
-                    color: '#fff',
-                    fontSize: 20,
-                    fontWeight: 700,
-                    letterSpacing: '-0.02em',
-                }}
-            >
-                🧠 SecondCortex <span style={{ opacity: 0.3, fontWeight: 400 }}>| Live Graph</span>
-            </div>
-
+        <div className="w-full h-full relative group">
             <ReactFlow
-                nodes={nodes}
+                nodes={nodes.map(n => ({
+                    ...n,
+                    style: {
+                        ...n.style,
+                        boxShadow: hoveredNode === n.id ? '0 0 40px rgba(255,255,255,0.4)' : 'none',
+                        transform: hoveredNode === n.id ? 'scale(1.05)' : 'scale(1)',
+                        animation: hoveredNode === n.id ? 'node-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite' : 'none',
+                        transition: 'all 0.3s ease',
+                    }
+                }))}
                 edges={edges}
                 onNodesChange={onNodesChange}
                 onEdgesChange={onEdgesChange}
                 onConnect={onConnect}
+                onNodeMouseEnter={(_, node) => setHoveredNode(node.id)}
+                onNodeMouseLeave={() => setHoveredNode(null)}
                 fitView
-                fitViewOptions={{ padding: 0.2 }}
-                minZoom={0.05}
-                maxZoom={2}
-                style={{ background: '#020617' }} // Slate 950 base
+                fitViewOptions={{ padding: 0.3 }}
+                minZoom={0.1}
+                maxZoom={1.5}
+                className="bg-transparent"
+                proOptions={{ hideAttribution: true }}
             >
-                <Background color="#1e293b" gap={24} size={1} variant={BackgroundVariant.Dots} />
-                <Controls
-                    style={{
-                        background: 'rgba(15, 23, 42, 0.6)',
-                        backdropFilter: 'blur(12px)',
-                        border: '1px solid rgba(255,255,255,0.1)',
-                        borderRadius: 12,
-                        padding: 4,
-                        boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
-                    }}
-                />
-                <MiniMap
-                    nodeColor={(node) => {
-                        if (node.id.startsWith('reason')) return '#10b981';
-                        if (node.id.startsWith('file')) return '#f5576c';
-                        if (node.id.startsWith('branch')) return '#667eea';
-                        return '#4facfe';
-                    }}
-                    maskColor="rgba(2, 6, 23, 0.85)"
-                    style={{
-                        background: 'rgba(15, 23, 42, 0.6)',
-                        backdropFilter: 'blur(12px)',
-                        border: '1px solid rgba(255,255,255,0.1)',
-                        borderRadius: 16,
-                        boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
-                    }}
-                />
+                {/* No background grid for cleaner mystery look */}
             </ReactFlow>
 
-            {/* Global Styles aligned with web-design-guidelines */}
-            <style>{`
-                :root {
-                    color-scheme: dark;
-                }
-                @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-                
-                body {
-                    margin: 0;
-                    padding: 0;
-                    background: #020617;
-                    color: #f8fafc;
-                    overflow: hidden;
-                    font-family: 'Inter', system-ui, -apple-system, sans-serif;
-                }
-                
-                .react-flow__controls-button {
-                    background: transparent !important;
-                    border-bottom: 1px solid rgba(255,255,255,0.1) !important;
-                    fill: #f8fafc !important;
-                    transition: background 0.2s ease;
-                }
-                .react-flow__controls-button:hover {
-                    background: rgba(255,255,255,0.1) !important;
-                }
-                .react-flow__controls-button:last-child {
-                    border-bottom: none !important;
-                }
-            `}</style>
+            {/* Cryptic floating labels on absolute position */}
+            <div className="absolute inset-0 pointer-events-none overflow-hidden opacity-20">
+                <div className="absolute top-[10%] left-[10%] text-[8px] uppercase tracking-[0.6em] text-white rotate-90">temporal_index</div>
+                <div className="absolute bottom-[20%] right-[15%] text-[8px] uppercase tracking-[0.6em] text-white">reasoning_kernel</div>
+                <div className="absolute top-[40%] right-[5%] text-[8px] uppercase tracking-[0.6em] text-white -rotate-90">signal_extractor</div>
+            </div>
         </div>
     );
 }

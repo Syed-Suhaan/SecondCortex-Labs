@@ -1,0 +1,28 @@
+The Rotating Brain on the Hero
+Here are three approaches, ranging from quick to premium:
+
+Option A — Three.js (code, free, most control)
+This is what's already partially set up in your codebase (BrainScene.tsx exists in your landing). You'd load a GLTF brain model and rotate it in a <canvas>. Best quality, fully customizable, matches your existing tech stack.
+To get the model:
+
+Sketchfab.com — search "brain low poly", filter by free + downloadable. Export as GLTF/GLB. There are several clean, stylized ones that would suit a dark UI.
+Poly.pizza — free low-poly models, very clean aesthetic, download as GLB directly.
+
+Then in Three.js:
+js// rough shape of what BrainScene.tsx would do
+loader.load('/brain.glb', (gltf) => {
+  scene.add(gltf.scene)
+  // slow Y-axis rotation in animation loop
+  gltf.scene.rotation.y += 0.003
+})
+You'd apply a wireframe or emissive white material to match the monochrome palette.
+
+Option B — Spline (no-code, free tier, very impressive)
+Go to spline.design, import or find a brain model, add a rotation behaviour, then export as a <script> embed or React component. The output is a single line of code. Their free tier is solid for this use case.
+This is probably the fastest path to something that looks premium. Spline has a community library with existing brain scenes you can fork.
+
+Option C — Lottie animation (lightest, 2D)
+If a flat illustrated brain with a rotation/pulse animation is enough, generate the illustration in Adobe Illustrator or Figma, animate it in LottieFiles, and embed with @lottiefiles/react-lottie-player. Extremely lightweight and crisp at any resolution.
+
+My recommendation for your stack:
+Since you already have BrainScene.tsx in secondcortex-web/src/components/landing/, the intent was always Three.js. Get a GLB from Poly.pizza (free, clean low-poly style), drop it in, apply a wireframe MeshBasicMaterial with white/grey color, and animate a slow Y rotation. It'll look exactly like the neural canvas already on the hero — but 3D and centered. Very coherent with the monochrome direction you just locked in.

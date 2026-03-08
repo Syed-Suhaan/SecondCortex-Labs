@@ -1,0 +1,1523 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SecondCortex — Your IDE Never Forgets</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=JetBrains+Mono:wght@300;400;500&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #080808;
+    --surface: #111111;
+    --border: rgba(255,255,255,0.08);
+    --cyan: #ffffff;
+    --cyan-dim: rgba(255,255,255,0.12);
+    --green: #d4d4d4;
+    --amber: #a0a0a0;
+    --red: #888888;
+    --text: #f0f0f0;
+    --muted: rgba(255,255,255,0.4);
+    --font-display: 'Syne', sans-serif;
+    --font-mono: 'JetBrains Mono', monospace;
+    --font-serif: 'Instrument Serif', serif;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-display);
+    overflow-x: hidden;
+    cursor: none;
+  }
+
+  /* CUSTOM CURSOR */
+  #cursor {
+    position: fixed;
+    width: 12px; height: 12px;
+    background: var(--cyan);
+    border-radius: 50%;
+    pointer-events: none;
+    z-index: 9999;
+    transform: translate(-50%, -50%);
+    transition: width 0.2s, height 0.2s, background 0.2s;
+    mix-blend-mode: screen;
+  }
+  #cursor-ring {
+    position: fixed;
+    width: 36px; height: 36px;
+    border: 1px solid rgba(255,255,255,0.4);
+    border-radius: 50%;
+    pointer-events: none;
+    z-index: 9998;
+    transform: translate(-50%, -50%);
+    transition: all 0.12s ease;
+  }
+  body:hover #cursor { opacity: 1; }
+
+  /* NOISE OVERLAY */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 1000;
+    opacity: 0.6;
+  }
+
+  /* NAV */
+  nav {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    z-index: 500;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 48px;
+    border-bottom: 1px solid var(--border);
+    backdrop-filter: blur(24px);
+    background: rgba(8,8,8,0.85);
+  }
+  .nav-logo {
+    font-size: 15px;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--cyan);
+  }
+  .nav-logo span { color: var(--text); opacity: 0.5; }
+  .nav-links {
+    display: flex;
+    gap: 40px;
+    list-style: none;
+    font-size: 12px;
+    font-family: var(--font-mono);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .nav-links a {
+    color: var(--muted);
+    text-decoration: none;
+    transition: color 0.2s;
+  }
+  .nav-links a:hover { color: var(--cyan); }
+  .nav-cta {
+    font-size: 12px;
+    font-family: var(--font-mono);
+    padding: 10px 20px;
+    border: 1px solid var(--cyan);
+    color: var(--cyan);
+    background: transparent;
+    cursor: none;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    transition: background 0.2s, color 0.2s;
+  }
+  .nav-cta:hover { background: var(--cyan); color: var(--bg); }
+
+  /* HERO */
+  .hero {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 120px 48px 80px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  /* CANVAS BACKGROUND */
+  #neural-canvas {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    opacity: 0.6;
+  }
+
+  .hero-content { position: relative; z-index: 2; max-width: 900px; }
+
+  .hero-eyebrow {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--cyan);
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    margin-bottom: 28px;
+    opacity: 0;
+    animation: fadeUp 0.8s 0.3s forwards;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .hero-eyebrow::before {
+    content: '';
+    width: 40px;
+    height: 1px;
+    background: var(--cyan);
+  }
+
+  .hero-title {
+    font-size: clamp(52px, 7vw, 110px);
+    font-weight: 800;
+    line-height: 0.92;
+    letter-spacing: -0.03em;
+    margin-bottom: 32px;
+    opacity: 0;
+    animation: fadeUp 0.9s 0.5s forwards;
+  }
+  .hero-title em {
+    font-style: normal;
+    font-family: var(--font-serif);
+    font-style: italic;
+    color: var(--cyan);
+    font-size: 1.05em;
+  }
+
+  .hero-sub {
+    font-size: 18px;
+    font-weight: 400;
+    color: var(--muted);
+    max-width: 520px;
+    line-height: 1.65;
+    margin-bottom: 48px;
+    opacity: 0;
+    animation: fadeUp 0.9s 0.7s forwards;
+  }
+
+  .hero-actions {
+    display: flex;
+    gap: 16px;
+    align-items: center;
+    opacity: 0;
+    animation: fadeUp 0.9s 0.9s forwards;
+  }
+  .btn-primary {
+    padding: 16px 36px;
+    background: var(--cyan);
+    color: var(--bg);
+    font-family: var(--font-mono);
+    font-size: 13px;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    border: none;
+    cursor: none;
+    position: relative;
+    overflow: hidden;
+    transition: transform 0.2s;
+  }
+  .btn-primary:hover { transform: translateY(-2px); }
+  .btn-secondary {
+    padding: 16px 36px;
+    background: transparent;
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: 13px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    border: 1px solid rgba(232,244,255,0.15);
+    cursor: none;
+    transition: border-color 0.2s, color 0.2s;
+  }
+  .btn-secondary:hover { border-color: var(--cyan); color: var(--cyan); }
+
+  /* TERMINAL DEMO */
+  .hero-terminal {
+    position: absolute;
+    right: 48px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 480px;
+    z-index: 3;
+    opacity: 0;
+    animation: fadeLeft 1s 1.2s forwards;
+  }
+  .terminal-window {
+    background: rgba(14,14,14,0.98);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 40px 120px rgba(0,0,0,0.9), 0 0 60px rgba(255,255,255,0.02);
+  }
+  .terminal-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 16px;
+    background: rgba(255,255,255,0.03);
+    border-bottom: 1px solid var(--border);
+  }
+  .t-dot { width: 10px; height: 10px; border-radius: 50%; }
+  .t-dot.red { background: #ff5f56; }
+  .t-dot.yellow { background: #ffbd2e; }
+  .t-dot.green { background: #27c93f; }
+  .terminal-title { margin-left: 8px; font-family: var(--font-mono); font-size: 11px; color: var(--muted); }
+  .terminal-body {
+    padding: 20px;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    line-height: 1.8;
+    min-height: 300px;
+  }
+  .t-line { display: flex; gap: 10px; }
+  .t-prompt { color: var(--green); user-select: none; }
+  .t-cmd { color: var(--text); }
+  .t-out { color: var(--muted); padding-left: 20px; }
+  .t-highlight { color: var(--cyan); }
+  .t-warn { color: var(--amber); }
+  .t-success { color: var(--green); }
+  .t-cursor-blink {
+    display: inline-block;
+    width: 8px;
+    height: 14px;
+    background: var(--cyan);
+    animation: blink 1s infinite;
+    vertical-align: text-bottom;
+    margin-left: 2px;
+  }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+
+  /* STATS BAR */
+  .stats-bar {
+    position: relative;
+    z-index: 2;
+    display: flex;
+    gap: 0;
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+    overflow: hidden;
+  }
+  .stat-item {
+    flex: 1;
+    padding: 32px 40px;
+    border-right: 1px solid var(--border);
+    position: relative;
+    overflow: hidden;
+    transition: background 0.3s;
+  }
+  .stat-item:last-child { border-right: none; }
+  .stat-item:hover { background: rgba(255,255,255,0.02); }
+  .stat-num {
+    font-size: 48px;
+    font-weight: 800;
+    color: var(--cyan);
+    line-height: 1;
+    margin-bottom: 8px;
+    font-variant-numeric: tabular-nums;
+  }
+  .stat-label {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+
+  /* SECTION STRUCTURE */
+  section { padding: 120px 48px; }
+  .section-label {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--cyan);
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    margin-bottom: 24px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .section-label::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+    max-width: 80px;
+  }
+  .section-title {
+    font-size: clamp(36px, 4vw, 64px);
+    font-weight: 800;
+    line-height: 1.0;
+    letter-spacing: -0.02em;
+    margin-bottom: 20px;
+  }
+  .section-title em {
+    font-style: italic;
+    font-family: var(--font-serif);
+    color: var(--cyan);
+    font-size: 1.02em;
+  }
+  .section-desc {
+    font-size: 17px;
+    color: var(--muted);
+    max-width: 500px;
+    line-height: 1.7;
+  }
+
+  /* HOW IT WORKS */
+  .pipeline {
+    position: relative;
+    margin-top: 80px;
+  }
+  .pipeline-track {
+    position: absolute;
+    top: 60px;
+    left: 0; right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3) 20%, rgba(255,255,255,0.3) 80%, transparent);
+    opacity: 0.2;
+  }
+  .pipeline-nodes {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0;
+    position: relative;
+  }
+  .pipeline-node {
+    padding: 0 24px 0 0;
+    cursor: none;
+  }
+  .node-index {
+    width: 40px; height: 40px;
+    border: 1px solid var(--border);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--cyan);
+    margin-bottom: 24px;
+    background: var(--bg);
+    position: relative;
+    z-index: 2;
+    transition: all 0.3s;
+  }
+  .pipeline-node:hover .node-index {
+    background: var(--cyan);
+    color: var(--bg);
+    box-shadow: 0 0 20px rgba(255,255,255,0.15);
+  }
+  .node-title {
+    font-size: 15px;
+    font-weight: 700;
+    margin-bottom: 12px;
+    letter-spacing: -0.01em;
+  }
+  .node-desc {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1.7;
+  }
+  .node-tag {
+    display: inline-block;
+    margin-top: 16px;
+    padding: 4px 10px;
+    border: 1px solid var(--border);
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--cyan);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
+  /* AGENTS SECTION */
+  .agents-section { background: var(--surface); }
+  .agents-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1px;
+    margin-top: 64px;
+    border: 1px solid var(--border);
+    background: var(--border);
+  }
+  .agent-card {
+    background: var(--surface);
+    padding: 48px;
+    position: relative;
+    overflow: hidden;
+    cursor: none;
+    transition: background 0.3s;
+  }
+  .agent-card:hover { background: rgba(255,255,255,0.02); }
+  .agent-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%;
+    height: 2px;
+    background: linear-gradient(90deg, var(--cyan), transparent);
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform 0.4s;
+  }
+  .agent-card:hover::before { transform: scaleX(1); }
+  .agent-icon {
+    width: 48px; height: 48px;
+    margin-bottom: 24px;
+    position: relative;
+  }
+  .agent-icon-inner {
+    width: 100%; height: 100%;
+    border: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    transition: border-color 0.3s, background 0.3s;
+  }
+  .agent-card:hover .agent-icon-inner {
+    border-color: var(--cyan);
+    background: rgba(255,255,255,0.06);
+  }
+  .agent-name {
+    font-size: 22px;
+    font-weight: 700;
+    margin-bottom: 8px;
+    letter-spacing: -0.01em;
+  }
+  .agent-role {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--cyan);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-bottom: 16px;
+  }
+  .agent-desc {
+    font-size: 14px;
+    color: var(--muted);
+    line-height: 1.7;
+    margin-bottom: 24px;
+  }
+  .agent-spec {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .spec-item {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--muted);
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+  }
+  .spec-item::before {
+    content: '→';
+    color: var(--cyan);
+  }
+
+  /* INTERACTIVE MEMORY DEMO */
+  .memory-demo { background: var(--bg); }
+  .demo-split {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 64px;
+    margin-top: 64px;
+    align-items: start;
+  }
+  .memory-visualizer {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 32px;
+    min-height: 400px;
+    position: relative;
+    overflow: hidden;
+  }
+  .memory-header {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    margin-bottom: 24px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .mem-status {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--green);
+  }
+  .mem-status::before {
+    content: '';
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--green);
+    animation: pulse 2s infinite;
+  }
+  @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.5;transform:scale(0.8)} }
+
+  .memory-entries { display: flex; flex-direction: column; gap: 12px; }
+  .mem-entry {
+    padding: 14px 16px;
+    border: 1px solid var(--border);
+    background: rgba(255,255,255,0.02);
+    cursor: none;
+    transition: all 0.2s;
+    position: relative;
+    overflow: hidden;
+  }
+  .mem-entry:hover { border-color: rgba(255,255,255,0.2); background: rgba(255,255,255,0.04); }
+  .mem-entry.active { border-color: var(--cyan); background: rgba(255,255,255,0.05); }
+  .mem-entry::after {
+    content: '';
+    position: absolute;
+    right: 14px; top: 50%;
+    transform: translateY(-50%);
+    width: 4px; height: 4px;
+    border-radius: 50%;
+    background: var(--cyan);
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+  .mem-entry:hover::after, .mem-entry.active::after { opacity: 1; }
+  .mem-file {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--cyan);
+    margin-bottom: 4px;
+  }
+  .mem-summary {
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1.5;
+  }
+  .mem-meta {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: rgba(232,244,255,0.25);
+    margin-top: 6px;
+    display: flex;
+    gap: 16px;
+  }
+
+  .query-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+  }
+  .query-title {
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    line-height: 1.3;
+  }
+  .query-desc {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1.7;
+  }
+  .query-input-wrap {
+    display: flex;
+    gap: 0;
+    border: 1px solid var(--border);
+    overflow: hidden;
+    transition: border-color 0.2s;
+  }
+  .query-input-wrap:focus-within { border-color: var(--cyan); }
+  .query-input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    outline: none;
+    padding: 14px 16px;
+    font-family: var(--font-mono);
+    font-size: 13px;
+    color: var(--text);
+    cursor: none;
+  }
+  .query-input::placeholder { color: var(--muted); }
+  .query-btn {
+    padding: 14px 20px;
+    background: var(--cyan);
+    border: none;
+    color: var(--bg);
+    font-family: var(--font-mono);
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    cursor: none;
+    transition: opacity 0.2s;
+  }
+  .query-btn:hover { opacity: 0.85; }
+  .query-suggestions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .suggestion-chip {
+    padding: 6px 12px;
+    border: 1px solid var(--border);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--muted);
+    cursor: none;
+    transition: all 0.2s;
+  }
+  .suggestion-chip:hover {
+    border-color: rgba(255,255,255,0.35);
+    color: var(--text);
+    background: rgba(255,255,255,0.05);
+  }
+  .query-result {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 20px;
+    min-height: 80px;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--text);
+    line-height: 1.7;
+    transition: all 0.3s;
+    position: relative;
+    overflow: hidden;
+  }
+  .result-label {
+    font-size: 10px;
+    color: var(--cyan);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    margin-bottom: 12px;
+    opacity: 0.7;
+  }
+  .result-text { color: var(--muted); }
+  .result-highlight { color: var(--cyan); }
+
+  /* SECURITY SECTION */
+  .security-section {
+    background: linear-gradient(135deg, var(--surface) 0%, var(--bg) 100%);
+    position: relative;
+    overflow: hidden;
+  }
+  .security-section::before {
+    content: 'SECURE';
+    position: absolute;
+    right: -40px;
+    top: 50%;
+    transform: translateY(-50%) rotate(90deg);
+    font-size: 120px;
+    font-weight: 800;
+    color: rgba(255,255,255,0.02);
+    letter-spacing: 0.2em;
+    pointer-events: none;
+  }
+  .security-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 1px;
+    background: var(--border);
+    margin-top: 64px;
+  }
+  .security-card {
+    background: var(--bg);
+    padding: 40px;
+    cursor: none;
+    transition: background 0.3s;
+  }
+  .security-card:hover { background: rgba(255,255,255,0.02); }
+  .security-icon { font-size: 28px; margin-bottom: 20px; }
+  .security-title {
+    font-size: 17px;
+    font-weight: 700;
+    margin-bottom: 12px;
+    letter-spacing: -0.01em;
+  }
+  .security-text {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1.7;
+  }
+
+  /* ARCHITECTURE */
+  .arch-section { background: var(--bg); }
+  .arch-diagram {
+    margin-top: 80px;
+    position: relative;
+    border: 1px solid var(--border);
+    padding: 48px;
+    background: var(--surface);
+  }
+  .arch-row {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+  .arch-row:last-child { margin-bottom: 0; }
+  .arch-box {
+    padding: 12px 24px;
+    border: 1px solid var(--border);
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--text);
+    white-space: nowrap;
+    cursor: none;
+    transition: all 0.2s;
+    position: relative;
+  }
+  .arch-box:hover {
+    border-color: rgba(255,255,255,0.35);
+    color: var(--text);
+    background: rgba(255,255,255,0.04);
+  }
+  .arch-box.primary { border-color: rgba(255,255,255,0.5); color: var(--text); }
+  .arch-box.highlight { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.2); }
+  .arch-arrow {
+    color: var(--muted);
+    font-family: var(--font-mono);
+    font-size: 18px;
+    opacity: 0.4;
+  }
+  .arch-label {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--muted);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    opacity: 0.6;
+    margin-left: auto;
+  }
+  .arch-sep {
+    height: 1px;
+    background: var(--border);
+    margin: 24px 0;
+  }
+
+  /* PRICING / CTA */
+  .cta-section {
+    text-align: center;
+    padding: 160px 48px;
+    position: relative;
+    overflow: hidden;
+  }
+  .cta-glow {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 600px; height: 300px;
+    background: radial-gradient(ellipse, rgba(255,255,255,0.04) 0%, transparent 70%);
+    pointer-events: none;
+  }
+  .cta-title {
+    font-size: clamp(48px, 6vw, 96px);
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    line-height: 0.95;
+    margin-bottom: 24px;
+    position: relative;
+    z-index: 2;
+  }
+  .cta-sub {
+    font-size: 17px;
+    color: var(--muted);
+    margin-bottom: 48px;
+    position: relative;
+    z-index: 2;
+    font-family: var(--font-mono);
+  }
+  .cta-actions {
+    display: flex;
+    justify-content: center;
+    gap: 16px;
+    position: relative;
+    z-index: 2;
+  }
+  .btn-large {
+    padding: 20px 48px;
+    font-size: 14px;
+    letter-spacing: 0.1em;
+  }
+
+  /* FOOTER */
+  footer {
+    border-top: 1px solid var(--border);
+    padding: 40px 48px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--muted);
+  }
+  .footer-links { display: flex; gap: 32px; }
+  .footer-links a { color: var(--muted); text-decoration: none; transition: color 0.2s; }
+  .footer-links a:hover { color: var(--cyan); }
+
+  /* SCROLL ANIMATIONS */
+  .reveal {
+    opacity: 0;
+    transform: translateY(30px);
+    transition: opacity 0.7s, transform 0.7s;
+  }
+  .reveal.visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  /* KEYFRAMES */
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(24px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes fadeLeft {
+    from { opacity: 0; transform: translateX(24px) translateY(-50%); }
+    to { opacity: 1; transform: translateX(0) translateY(-50%); }
+  }
+
+  /* SCROLLING TICKER */
+  .ticker-wrap {
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+    overflow: hidden;
+    padding: 14px 0;
+    background: rgba(255,255,255,0.01);
+  }
+  .ticker-track {
+    display: flex;
+    gap: 0;
+    animation: ticker 30s linear infinite;
+    white-space: nowrap;
+  }
+  .ticker-item {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 0.1em;
+    padding: 0 40px;
+    text-transform: uppercase;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  .ticker-item::after {
+    content: '◆';
+    color: var(--cyan);
+    font-size: 8px;
+  }
+  @keyframes ticker {
+    from { transform: translateX(0); }
+    to { transform: translateX(-50%); }
+  }
+
+  /* GLOW LINE */
+  .glow-line {
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+    opacity: 0.3;
+  }
+</style>
+</head>
+<body>
+
+<div id="cursor"></div>
+<div id="cursor-ring"></div>
+
+<!-- NAV -->
+<nav>
+  <div class="nav-logo">Second<span>Cortex</span></div>
+  <ul class="nav-links">
+    <li><a href="#how">Architecture</a></li>
+    <li><a href="#agents">Agents</a></li>
+    <li><a href="#memory">Memory</a></li>
+    <li><a href="#security">Security</a></li>
+  </ul>
+  <button class="nav-cta">Install Extension →</button>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <canvas id="neural-canvas"></canvas>
+
+  <div class="hero-content">
+    <div class="hero-eyebrow">VS Code Extension · Multi-Agent AI · Vector Memory</div>
+    <h1 class="hero-title">
+      Your IDE<br>
+      <em>never</em><br>
+      forgets.
+    </h1>
+    <p class="hero-sub">
+      SecondCortex is a persistent AI memory layer for VS Code — it captures your workspace context as you code, stores it as searchable vector embeddings, and lets you restore any past session with a natural language command.
+    </p>
+    <div class="hero-actions">
+      <button class="btn-primary btn-large">Install on VS Code</button>
+      <button class="btn-secondary btn-large">Read the Docs</button>
+    </div>
+  </div>
+
+  <div class="hero-terminal">
+    <div class="terminal-window">
+      <div class="terminal-bar">
+        <div class="t-dot red"></div>
+        <div class="t-dot yellow"></div>
+        <div class="t-dot green"></div>
+        <span class="terminal-title">cortex — secondcortex-backend</span>
+      </div>
+      <div class="terminal-body" id="terminal-body">
+        <!-- typed dynamically -->
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- TICKER -->
+<div class="ticker-wrap">
+  <div class="ticker-track" id="ticker-track">
+    <span class="ticker-item">Planner Agent</span>
+    <span class="ticker-item">Retriever Agent</span>
+    <span class="ticker-item">Executor Agent</span>
+    <span class="ticker-item">Simulator Sub-Agent</span>
+    <span class="ticker-item">ChromaDB Vector Store</span>
+    <span class="ticker-item">MCP Server</span>
+    <span class="ticker-item">Semantic Firewall</span>
+    <span class="ticker-item">Shadow Graph</span>
+    <span class="ticker-item">JWT Auth</span>
+    <span class="ticker-item">Azure Deployment</span>
+    <span class="ticker-item">FastAPI Backend</span>
+    <span class="ticker-item">GPT-4o</span>
+    <span class="ticker-item">Groq / Llama-3.1</span>
+    <!-- doubled for seamless loop -->
+    <span class="ticker-item">Planner Agent</span>
+    <span class="ticker-item">Retriever Agent</span>
+    <span class="ticker-item">Executor Agent</span>
+    <span class="ticker-item">Simulator Sub-Agent</span>
+    <span class="ticker-item">ChromaDB Vector Store</span>
+    <span class="ticker-item">MCP Server</span>
+    <span class="ticker-item">Semantic Firewall</span>
+    <span class="ticker-item">Shadow Graph</span>
+    <span class="ticker-item">JWT Auth</span>
+    <span class="ticker-item">Azure Deployment</span>
+    <span class="ticker-item">FastAPI Backend</span>
+    <span class="ticker-item">GPT-4o</span>
+    <span class="ticker-item">Groq / Llama-3.1</span>
+  </div>
+</div>
+
+<!-- STATS -->
+<div class="stats-bar reveal">
+  <div class="stat-item">
+    <div class="stat-num" data-target="3">0</div>
+    <div class="stat-label">Core Agents</div>
+  </div>
+  <div class="stat-item">
+    <div class="stat-num" data-target="1536">0</div>
+    <div class="stat-label">Embedding Dimensions</div>
+  </div>
+  <div class="stat-item">
+    <div class="stat-num" data-target="11">0</div>
+    <div class="stat-label">Technical Pivots Shipped</div>
+  </div>
+  <div class="stat-item">
+    <div class="stat-num" data-target="0" data-suffix="">~sub-second</div>
+    <div class="stat-label">Context Retrieval</div>
+  </div>
+</div>
+
+<!-- HOW IT WORKS -->
+<section id="how">
+  <div class="section-label">How it works</div>
+  <div class="section-title">From keystroke to<br><em>memory</em> in milliseconds.</div>
+  <p class="section-desc reveal">IDE events are captured in the background, embedded into a vector store, and made searchable — so any agent or external tool can pull relevant context when you need it.</p>
+
+  <div class="pipeline reveal">
+    <div class="pipeline-track"></div>
+    <div class="pipeline-nodes">
+      <div class="pipeline-node">
+        <div class="node-index">01</div>
+        <div class="node-title">Capture</div>
+        <div class="node-desc">The VS Code extension monitors every IDE event — open tabs, active files, terminal output, git state — with a debounced snapshot system.</div>
+        <span class="node-tag">eventCapture.ts</span>
+      </div>
+      <div class="pipeline-node">
+        <div class="node-index">02</div>
+        <div class="node-title">Embed</div>
+        <div class="node-desc">Snapshots are vectorized using text-embedding-3-small into 1536-dimensional space and stored in a persistent ChromaDB instance per user.</div>
+        <span class="node-tag">vector_db.py</span>
+      </div>
+      <div class="pipeline-node">
+        <div class="node-index">03</div>
+        <div class="node-title">Retrieve</div>
+        <div class="node-desc">When you trigger a session restore or ask a question, the Retriever searches your vector store by semantic similarity — returning the most relevant snapshots, including those from other repos.</div>
+        <span class="node-tag">retriever.py</span>
+      </div>
+      <div class="pipeline-node">
+        <div class="node-index">04</div>
+        <div class="node-title">Execute</div>
+        <div class="node-desc">After you confirm the Planner's proposed actions, the Executor applies them to your workspace — opening files, switching branches, running the Simulator sub-agent to check for git conflicts first.</div>
+        <span class="node-tag">executor.py</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="glow-line"></div>
+
+<!-- AGENTS -->
+<section id="agents" class="agents-section">
+  <div class="section-label">The agents</div>
+  <div class="section-title">Three agents.<br><em>One pipeline.</em></div>
+  <p class="section-desc reveal">A focused multi-agent architecture where each component has a distinct role. The Executor runs a built-in Simulator sub-agent for pre-flight checks before touching your workspace.</p>
+
+  <div class="agents-grid reveal" style="grid-template-columns: repeat(3, 1fr);">
+    <div class="agent-card">
+      <div class="agent-icon"><div class="agent-icon-inner" style="font-family: var(--font-mono); font-size: 13px; color: var(--cyan); font-weight: 500;">PLN</div></div>
+      <div class="agent-name">Planner</div>
+      <div class="agent-role">Task Decomposition</div>
+      <div class="agent-desc">Takes a natural language request and breaks it into a structured, step-by-step action plan. Uses retrieved context from your memory to make decisions relevant to your actual codebase — not guesses.</div>
+      <div class="agent-spec">
+        <div class="spec-item">LLM: GPT-4o via GitHub Models</div>
+        <div class="spec-item">Output: Structured action plan</div>
+        <div class="spec-item">Requires explicit user confirmation</div>
+      </div>
+    </div>
+    <div class="agent-card">
+      <div class="agent-icon"><div class="agent-icon-inner" style="font-family: var(--font-mono); font-size: 13px; color: var(--cyan); font-weight: 500;">RTV</div></div>
+      <div class="agent-name">Retriever</div>
+      <div class="agent-role">Semantic Memory Search</div>
+      <div class="agent-desc">Searches your ChromaDB vector store using cosine similarity to surface relevant past context — open files, git branches, code summaries. Also exposed as an MCP endpoint so Claude and Cursor can query it directly.</div>
+      <div class="agent-spec">
+        <div class="spec-item">Store: ChromaDB (per-user namespace)</div>
+        <div class="spec-item">Embeddings: text-embedding-3-small</div>
+        <div class="spec-item">Exposed via MCP SSE endpoint</div>
+      </div>
+    </div>
+    <div class="agent-card">
+      <div class="agent-icon"><div class="agent-icon-inner" style="font-family: var(--font-mono); font-size: 13px; color: var(--cyan); font-weight: 500;">EXC</div></div>
+      <div class="agent-name">Executor</div>
+      <div class="agent-role">Workspace Restoration</div>
+      <div class="agent-desc">Applies the approved action plan to your VS Code workspace — opening files, switching branches, restoring terminal context. Runs the Simulator sub-agent first to check for unstashed changes or branch conflicts before making any changes.</div>
+      <div class="agent-spec">
+        <div class="spec-item">LLM: Groq Llama-3.1 (fast inference)</div>
+        <div class="spec-item">Sub-agent: Simulator (git pre-flight)</div>
+        <div class="spec-item">PowerShell + bash compatible</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- MEMORY DEMO -->
+<section id="memory" class="memory-demo">
+  <div class="section-label">Live Memory</div>
+  <div class="section-title">Query your<br><em>past work.</em></div>
+
+  <div class="demo-split reveal">
+    <div class="memory-visualizer">
+      <div class="memory-header">
+        <span>ChromaDB · User Namespace</span>
+        <span class="mem-status">LIVE</span>
+      </div>
+      <div class="memory-entries" id="mem-entries">
+        <div class="mem-entry active" data-file="auth/jwt_handler.py" data-summary="Implemented RS256 JWT signing with 24h expiry and refresh token rotation." data-branch="feat/auth" data-time="2h ago">
+          <div class="mem-file">auth/jwt_handler.py</div>
+          <div class="mem-summary">Implemented RS256 JWT signing with 24h expiry and refresh token rotation.</div>
+          <div class="mem-meta"><span>feat/auth</span><span>2h ago</span></div>
+        </div>
+        <div class="mem-entry" data-file="agents/retriever.py" data-summary="Added cross-workspace semantic search with ChromaDB collection isolation per user_id." data-branch="feat/mcp" data-time="5h ago">
+          <div class="mem-file">agents/retriever.py</div>
+          <div class="mem-summary">Added cross-workspace semantic search with ChromaDB collection isolation per user_id.</div>
+          <div class="mem-meta"><span>feat/mcp</span><span>5h ago</span></div>
+        </div>
+        <div class="mem-entry" data-file="security/firewall.ts" data-summary="Semantic Firewall that redacts API keys, tokens, and secrets before any snapshot leaves the local machine." data-branch="feat/security" data-time="1d ago">
+          <div class="mem-file">security/firewall.ts</div>
+          <div class="mem-summary">Semantic Firewall redacts API keys and secrets locally before upload.</div>
+          <div class="mem-meta"><span>feat/security</span><span>1d ago</span></div>
+        </div>
+        <div class="mem-entry" data-file="agents/simulator.py" data-summary="Pre-flight simulation agent checks git status for unstashed changes and branch conflicts before resurrection." data-branch="feat/simulator" data-time="2d ago">
+          <div class="mem-file">agents/simulator.py</div>
+          <div class="mem-summary">Pre-flight simulator generates conflict Safety Reports from git diff.</div>
+          <div class="mem-meta"><span>feat/simulator</span><span>2d ago</span></div>
+        </div>
+        <div class="mem-entry" data-file="services/vector_db.py" data-summary="VectorDB service with per-user ChromaDB collections, upsert_snapshot, and semantic search with cosine similarity." data-branch="main" data-time="3d ago">
+          <div class="mem-file">services/vector_db.py</div>
+          <div class="mem-summary">VectorDB service wrapping ChromaDB with upsert and semantic search.</div>
+          <div class="mem-meta"><span>main</span><span>3d ago</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="query-panel">
+      <div class="query-title">Ask your second cortex anything about your codebase.</div>
+      <div class="query-desc">Natural language semantic search across your entire development history — not just grep, but meaning.</div>
+
+      <div class="query-input-wrap">
+        <input class="query-input" id="query-input" type="text" placeholder="How does authentication work in this project?" />
+        <button class="query-btn" id="query-btn">SEARCH</button>
+      </div>
+
+      <div>
+        <div style="font-family: var(--font-mono); font-size: 11px; color: var(--muted); margin-bottom: 10px; letter-spacing: 0.08em; text-transform: uppercase;">Try asking:</div>
+        <div class="query-suggestions">
+          <div class="suggestion-chip" onclick="fillQuery(this)">JWT token flow</div>
+          <div class="suggestion-chip" onclick="fillQuery(this)">vector search logic</div>
+          <div class="suggestion-chip" onclick="fillQuery(this)">where are secrets handled</div>
+          <div class="suggestion-chip" onclick="fillQuery(this)">git branch conflicts</div>
+          <div class="suggestion-chip" onclick="fillQuery(this)">rate limiting implementation</div>
+        </div>
+      </div>
+
+      <div class="query-result" id="query-result">
+        <div class="result-label">Retriever · Awaiting Query</div>
+        <div class="result-text" id="result-text">Click any memory entry or type a query to see semantic retrieval in action.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SECURITY -->
+<section id="security" class="security-section">
+  <div class="section-label">Security</div>
+  <div class="section-title">Your secrets stay<br><em>yours.</em></div>
+  <p class="section-desc reveal">Credentials never leave your machine unredacted. User data is namespace-isolated, and no workspace change runs without your explicit approval.</p>
+
+  <div class="security-grid reveal">
+    <div class="security-card">
+      <div class="security-icon"><svg width="28" height="28" viewBox="0 0 28 28" fill="none"><rect x="1" y="1" width="26" height="26" stroke="rgba(255,255,255,0.25)" stroke-width="1"/><path d="M7 14h14M14 7v14" stroke="rgba(255,255,255,0.6)" stroke-width="1.5"/><circle cx="14" cy="14" r="4" stroke="rgba(255,255,255,0.35)" stroke-width="1"/></svg></div>
+      <div class="security-title">Semantic Firewall</div>
+      <div class="security-text">Redacts API keys, tokens, and credentials from every snapshot before it leaves your machine. Pattern-matched against common secret formats — env vars, bearer tokens, private keys.</div>
+    </div>
+    <div class="security-card">
+      <div class="security-icon"><svg width="28" height="28" viewBox="0 0 28 28" fill="none"><rect x="1" y="1" width="26" height="26" stroke="rgba(255,255,255,0.25)" stroke-width="1"/><rect x="7" y="7" width="6" height="6" stroke="rgba(255,255,255,0.6)" stroke-width="1"/><rect x="15" y="7" width="6" height="6" stroke="rgba(255,255,255,0.25)" stroke-width="1"/><rect x="7" y="15" width="6" height="6" stroke="rgba(255,255,255,0.25)" stroke-width="1"/><rect x="15" y="15" width="6" height="6" stroke="rgba(255,255,255,0.25)" stroke-width="1"/></svg></div>
+      <div class="security-title">Per-User Isolation</div>
+      <div class="security-text">Each user gets a separate ChromaDB collection namespace. JWT-authenticated API endpoints ensure no cross-user data leakage at the storage or query layer.</div>
+    </div>
+    <div class="security-card">
+      <div class="security-icon"><svg width="28" height="28" viewBox="0 0 28 28" fill="none"><rect x="1" y="1" width="26" height="26" stroke="rgba(255,255,255,0.25)" stroke-width="1"/><polyline points="7,14 12,19 21,9" stroke="rgba(255,255,255,0.7)" stroke-width="1.5" fill="none"/></svg></div>
+      <div class="security-title">Confirmation Before Execution</div>
+      <div class="security-text">The Executor never runs without your sign-off. Every action plan is displayed as a readable summary in the VS Code sidebar before any workspace change is made.</div>
+    </div>
+  </div>
+</section>
+
+<!-- ARCHITECTURE -->
+<section id="arch" class="arch-section">
+  <div class="section-label">Architecture</div>
+  <div class="section-title">Production-grade<br><em>from day one.</em></div>
+
+  <div class="arch-diagram reveal">
+    <div style="font-family: var(--font-mono); font-size: 11px; color: var(--muted); letter-spacing: 0.15em; text-transform: uppercase; margin-bottom: 32px;">System Architecture Overview</div>
+
+    <div class="arch-row">
+      <div class="arch-box highlight">VS Code Extension (TypeScript)</div>
+      <div class="arch-arrow">→</div>
+      <div class="arch-box">Event Capture + Debouncer</div>
+      <div class="arch-arrow">→</div>
+      <div class="arch-box">Semantic Firewall</div>
+      <div class="arch-arrow">→</div>
+      <div class="arch-box primary">FastAPI Backend</div>
+      <div class="arch-label">Data Ingestion Layer</div>
+    </div>
+
+    <div class="arch-sep"></div>
+
+    <div class="arch-row">
+      <div class="arch-box primary">FastAPI Backend</div>
+      <div class="arch-arrow">→</div>
+      <div class="arch-box">LLM Client (GPT-4o / Groq)</div>
+      <div class="arch-arrow">→</div>
+      <div class="arch-box">3-Agent Pipeline</div>
+      <div class="arch-arrow">→</div>
+      <div class="arch-box highlight">ChromaDB (1536d vectors)</div>
+      <div class="arch-label">Intelligence Layer</div>
+    </div>
+
+    <div class="arch-sep"></div>
+
+    <div class="arch-row">
+      <div class="arch-box">MCP SSE Server</div>
+      <div class="arch-arrow">→</div>
+      <div class="arch-box highlight">Claude / Cursor / Any AI</div>
+      <div style="margin-left: 16px; font-family: var(--font-mono); font-size: 11px; color: var(--muted);">— External AI tools can query your Cortex memory natively via Model Context Protocol</div>
+      <div class="arch-label">Integration Layer</div>
+    </div>
+
+    <div class="arch-sep"></div>
+
+    <div class="arch-row">
+      <div class="arch-box">Azure Web App (Backend)</div>
+      <div class="arch-arrow">+</div>
+      <div class="arch-box">GitHub Actions CI/CD</div>
+      <div class="arch-arrow">+</div>
+      <div class="arch-box">Docker (GHCR)</div>
+      <div class="arch-arrow">+</div>
+      <div class="arch-box highlight">Next.js Web Dashboard</div>
+      <div class="arch-label">Deployment Layer</div>
+    </div>
+  </div>
+</section>
+
+<!-- CTA -->
+<section class="cta-section">
+  <div class="cta-glow"></div>
+  <p class="section-label" style="justify-content: center;">Early Access</p>
+  <h2 class="cta-title">Build with<br><em>context.</em></h2>
+  <p class="cta-sub">Install the VS Code extension. SecondCortex starts building your memory immediately.</p>
+  <div class="cta-actions">
+    <button class="btn-primary btn-large">Install Extension — Free</button>
+    <button class="btn-secondary btn-large">View on GitHub</button>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="nav-logo">Second<span>Cortex</span></div>
+  <div class="footer-links">
+    <a href="#">GitHub</a>
+    <a href="#">Docs</a>
+    <a href="#">VS Code Marketplace</a>
+    <a href="#">MCP Protocol</a>
+  </div>
+  <div>© 2026 SecondCortex Labs</div>
+</footer>
+
+<script>
+// ── CURSOR ──────────────────────────────────────────────
+const cursor = document.getElementById('cursor');
+const ring = document.getElementById('cursor-ring');
+let mx = 0, my = 0, rx = 0, ry = 0;
+document.addEventListener('mousemove', e => { mx = e.clientX; my = e.clientY; });
+function animCursor() {
+  cursor.style.left = mx + 'px';
+  cursor.style.top = my + 'px';
+  rx += (mx - rx) * 0.15;
+  ry += (my - ry) * 0.15;
+  ring.style.left = rx + 'px';
+  ring.style.top = ry + 'px';
+  requestAnimationFrame(animCursor);
+}
+animCursor();
+document.querySelectorAll('button, a, .mem-entry, .suggestion-chip, .agent-card').forEach(el => {
+  el.addEventListener('mouseenter', () => {
+    cursor.style.width = '20px'; cursor.style.height = '20px';
+    ring.style.width = '52px'; ring.style.height = '52px';
+    ring.style.borderColor = 'rgba(255,255,255,0.7)';
+  });
+  el.addEventListener('mouseleave', () => {
+    cursor.style.width = '12px'; cursor.style.height = '12px';
+    ring.style.width = '36px'; ring.style.height = '36px';
+    ring.style.borderColor = 'rgba(255,255,255,0.4)';
+  });
+});
+
+// ── NEURAL CANVAS ───────────────────────────────────────
+const canvas = document.getElementById('neural-canvas');
+const ctx = canvas.getContext('2d');
+let nodes = [];
+function resize() { canvas.width = canvas.offsetWidth; canvas.height = canvas.offsetHeight; }
+resize();
+window.addEventListener('resize', resize);
+
+for (let i = 0; i < 60; i++) {
+  nodes.push({
+    x: Math.random() * canvas.width,
+    y: Math.random() * canvas.height,
+    vx: (Math.random() - 0.5) * 0.3,
+    vy: (Math.random() - 0.5) * 0.3,
+    r: Math.random() * 2 + 1
+  });
+}
+
+function drawCanvas() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  nodes.forEach(n => {
+    n.x += n.vx; n.y += n.vy;
+    if (n.x < 0 || n.x > canvas.width) n.vx *= -1;
+    if (n.y < 0 || n.y > canvas.height) n.vy *= -1;
+    ctx.beginPath();
+    ctx.arc(n.x, n.y, n.r, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(255,255,255,0.35)';
+    ctx.fill();
+  });
+  nodes.forEach((a, i) => {
+    nodes.slice(i + 1).forEach(b => {
+      const d = Math.hypot(a.x - b.x, a.y - b.y);
+      if (d < 120) {
+        ctx.beginPath();
+        ctx.moveTo(a.x, a.y);
+        ctx.lineTo(b.x, b.y);
+        ctx.strokeStyle = `rgba(255,255,255,${0.1 * (1 - d / 120)})`;
+        ctx.lineWidth = 0.5;
+        ctx.stroke();
+      }
+    });
+  });
+  requestAnimationFrame(drawCanvas);
+}
+drawCanvas();
+
+// ── TERMINAL TYPEWRITER ─────────────────────────────────
+const lines = [
+  { type: 'cmd', prompt: '~', text: 'cortex resurrect --branch feat/auth' },
+  { type: 'out', text: '⟳  Scanning vector store...' },
+  { type: 'out', text: '✓  Found 3 matching snapshots' },
+  { type: 'out', text: '' },
+  { type: 'out', text: '   Proposed Action Plan:' },
+  { type: 'highlight', text: '   1. Open auth/jwt_handler.py' },
+  { type: 'highlight', text: '   2. Restore 4 tabs from last session' },
+  { type: 'highlight', text: '   3. Switch to branch: feat/auth' },
+  { type: 'out', text: '' },
+  { type: 'warn', text: '⚠  Simulator: 1 unstashed file detected' },
+  { type: 'out', text: '   → auth/routes.py (modified)' },
+  { type: 'out', text: '' },
+  { type: 'cmd', prompt: '~', text: 'Confirm? [y/N] y' },
+  { type: 'success', text: '✓  Workspace resurrected in 94ms' },
+];
+const tb = document.getElementById('terminal-body');
+let li = 0, ci = 0;
+function typeNext() {
+  if (li >= lines.length) return;
+  const line = lines[li];
+  if (line.type === 'cmd') {
+    const el = document.createElement('div');
+    el.className = 't-line';
+    el.innerHTML = `<span class="t-prompt">${line.prompt} $</span><span class="t-cmd" id="tl${li}"></span>`;
+    tb.appendChild(el);
+    const span = document.getElementById('tl' + li);
+    let c = 0;
+    const t = setInterval(() => {
+      span.textContent = line.text.slice(0, ++c);
+      if (c >= line.text.length) { clearInterval(t); li++; setTimeout(typeNext, 400); }
+    }, 30);
+  } else {
+    const el = document.createElement('div');
+    const cls = { out: 't-out', highlight: 't-out t-highlight', warn: 't-out t-warn', success: 't-out t-success' }[line.type];
+    el.className = cls;
+    el.textContent = line.text;
+    tb.appendChild(el);
+    li++; setTimeout(typeNext, 120);
+  }
+  tb.scrollTop = tb.scrollHeight;
+}
+setTimeout(typeNext, 1800);
+
+// ── COUNTER ANIMATION ───────────────────────────────────
+function animateCounters() {
+  document.querySelectorAll('[data-target]').forEach(el => {
+    const target = parseInt(el.dataset.target);
+    if (isNaN(target)) return;
+    const suffix = el.dataset.suffix || '';
+    let start = 0;
+    const dur = 1600;
+    const step = (ts) => {
+      if (!start) start = ts;
+      const p = Math.min((ts - start) / dur, 1);
+      const ease = 1 - Math.pow(1 - p, 3);
+      el.textContent = Math.round(ease * target) + suffix;
+      if (p < 1) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+  });
+}
+
+// ── SCROLL REVEAL ───────────────────────────────────────
+const observer = new IntersectionObserver(entries => {
+  entries.forEach(e => {
+    if (e.isIntersecting) {
+      e.target.classList.add('visible');
+      if (e.target.classList.contains('stats-bar')) animateCounters();
+    }
+  });
+}, { threshold: 0.1 });
+document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+
+// ── MEMORY DEMO ─────────────────────────────────────────
+const memEntries = document.querySelectorAll('.mem-entry');
+const resultText = document.getElementById('result-text');
+const resultLabel = document.querySelector('.result-label');
+const queryInput = document.getElementById('query-input');
+
+const responses = {
+  'auth/jwt_handler.py': {
+    label: 'Retriever · Memory Match — auth/jwt_handler.py',
+    text: `Branch: feat/auth · 2 hours ago\n\nContext: Implementing JWT authentication with RS256 signing algorithm. 24-hour access token expiry with refresh token rotation. Stored session in PostgreSQL-backed auth database.\n\nRelevant symbols: create_access_token(), verify_token(), refresh_token_endpoint()`
+  },
+  'agents/retriever.py': {
+    label: 'Retriever · Memory Match — agents/retriever.py',
+    text: `Branch: feat/mcp · 5 hours ago\n\nContext: Cross-workspace semantic search added to Retriever Agent. ChromaDB collections isolated by user_id. Cosine similarity threshold set at 0.72 for high-signal results.\n\nRelevant symbols: search_memory(), upsert_snapshot(), cross_project_search()`
+  },
+  'security/firewall.ts': {
+    label: 'Retriever · Memory Match — security/firewall.ts',
+    text: `Branch: feat/security · 1 day ago\n\nContext: Semantic Firewall built to detect and redact secrets before any snapshot leaves the local machine. Pattern matching for API keys, JWT tokens, passwords, env vars.\n\nRelevant symbols: FirewallRule, redactSecrets(), scanSnapshot()`
+  },
+  'agents/simulator.py': {
+    label: 'Retriever · Memory Match — agents/simulator.py',
+    text: `Branch: feat/simulator · 2 days ago\n\nContext: Simulator Agent added as the 4th agent in the pipeline. Runs git status + diff before any resurrection to generate a SafetyReport. Blocks execution if destructive conflicts detected.\n\nRelevant symbols: run_preflight(), generate_safety_report(), check_unstashed_files()`
+  },
+  'services/vector_db.py': {
+    label: 'Retriever · Memory Match — services/vector_db.py',
+    text: `Branch: main · 3 days ago\n\nContext: VectorDB service abstraction over ChromaDB. Per-user collection management, snapshot upsert with 1536d embeddings, and semantic similarity search with metadata filtering.\n\nRelevant symbols: VectorDBService, upsert_snapshot(), semantic_search(), get_or_create_collection()`
+  }
+};
+
+const queryMap = {
+  'jwt token flow': 'auth/jwt_handler.py',
+  'vector search logic': 'agents/retriever.py',
+  'where are secrets handled': 'security/firewall.ts',
+  'git branch conflicts': 'agents/simulator.py',
+  'rate limiting implementation': 'services/vector_db.py'
+};
+
+memEntries.forEach(entry => {
+  entry.addEventListener('click', () => {
+    memEntries.forEach(e => e.classList.remove('active'));
+    entry.classList.add('active');
+    const file = entry.dataset.file;
+    const r = responses[file];
+    if (r) {
+      resultLabel.textContent = r.label;
+      resultText.style.opacity = 0;
+      setTimeout(() => {
+        resultText.textContent = r.text;
+        resultText.style.opacity = 1;
+      }, 200);
+    }
+  });
+});
+
+function fillQuery(chip) {
+  queryInput.value = chip.textContent;
+  fireQuery(chip.textContent);
+}
+
+function fireQuery(q) {
+  const match = queryMap[q.toLowerCase().trim()];
+  if (match) {
+    memEntries.forEach(e => {
+      e.classList.remove('active');
+      if (e.dataset.file === match) e.classList.add('active');
+    });
+    const r = responses[match];
+    resultLabel.textContent = r.label;
+    resultText.style.opacity = 0;
+    setTimeout(() => {
+      resultText.textContent = r.text;
+      resultText.style.opacity = 1;
+    }, 200);
+  } else {
+    resultLabel.textContent = 'Retriever · Semantic Search';
+    resultText.style.opacity = 0;
+    setTimeout(() => {
+      resultText.textContent = `Searching vector store for: "${q}"\n\nRunning cosine similarity search across ${Math.floor(Math.random()*800)+200} stored snapshots...\n\nTop result: similarity score 0.${Math.floor(Math.random()*15)+80} — context match found in active workspace history.`;
+      resultText.style.opacity = 1;
+    }, 300);
+  }
+}
+
+document.getElementById('query-btn').addEventListener('click', () => {
+  fireQuery(queryInput.value);
+});
+queryInput.addEventListener('keydown', e => {
+  if (e.key === 'Enter') fireQuery(queryInput.value);
+});
+</script>
+</body>
+</html>
