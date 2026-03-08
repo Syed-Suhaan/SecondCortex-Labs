@@ -26,11 +26,11 @@ logger = logging.getLogger("secondcortex.mcp")
 logger.info("Initializing VectorDBService for MCP...")
 vector_db = VectorDBService()
 
-# Create the MCP Server, allowing the Azure Production Host
+# Create the MCP Server, allowing ANY Production Host (Public)
 mcp = FastMCP(
     "SecondCortex API",
     transport_security=TransportSecuritySettings(
-        allowed_hosts=["sc-backend-suhaan.azurewebsites.net", "localhost", "127.0.0.1"]
+        enable_dns_rebinding_protection=False
     )
 )
 
