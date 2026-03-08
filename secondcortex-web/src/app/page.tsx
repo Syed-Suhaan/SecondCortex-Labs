@@ -1,135 +1,281 @@
-import CustomCursor from "@/components/CustomCursor";
-import StickyFooter from "@/components/StickyFooter";
-import FloatingSquares from "@/components/FloatingSquares";
-import FadeInSection from "@/components/FadeInSection";
-import InteractiveLogo from "@/components/InteractiveLogo";
+"use client";
 
-export const metadata = {
-  title: "SecondCortex — AI-Powered Development Companion",
-  description:
-    "SecondCortex tracks your coding context in real time, giving your AI tools the memory they need to truly understand your workflow.",
-};
+import { useEffect, useRef, useState, useCallback } from "react";
 
-export default function Home() {
+// ── Terminal lines data ─────────────────────────────────────
+const TERMINAL_LINES = [
+  { type: "cmd", prompt: "~", text: "cortex resurrect --branch feat/auth" },
+  { type: "out", text: "⟳  Scanning vector store..." },
+  { type: "out", text: "✓  Found 3 matching snapshots" },
+  { type: "out", text: "" },
+  { type: "out", text: "   Proposed Action Plan:" },
+  { type: "highlight", text: "   1. Open auth/jwt_handler.py" },
+  { type: "highlight", text: "   2. Restore 4 tabs from last session" },
+  { type: "highlight", text: "   3. Switch to branch: feat/auth" },
+  { type: "out", text: "" },
+  { type: "warn", text: "⚠  Simulator: 1 unstashed file detected" },
+  { type: "out", text: "   → auth/routes.py (modified)" },
+  { type: "out", text: "" },
+  { type: "cmd", prompt: "~", text: "Confirm? [y/N] y" },
+  { type: "success", text: "✓  Workspace resurrected in 94ms" },
+];
+
+export default function LandingPage() {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const terminalRef = useRef<HTMLDivElement>(null);
+
+  // ── CURSOR ──────────────────────────────────────────────
+  useEffect(() => {
+    const cursor = document.getElementById("cursor");
+    const ring = document.getElementById("cursor-ring");
+    if (!cursor || !ring) return;
+    let mx = 0, my = 0, rx = 0, ry = 0;
+
+    const onMove = (e: MouseEvent) => { mx = e.clientX; my = e.clientY; };
+    document.addEventListener("mousemove", onMove);
+
+    const animCursor = () => {
+      cursor.style.left = mx + "px";
+      cursor.style.top = my + "px";
+      rx += (mx - rx) * 0.15;
+      ry += (my - ry) * 0.15;
+      ring.style.left = rx + "px";
+      ring.style.top = ry + "px";
+      requestAnimationFrame(animCursor);
+    };
+    animCursor();
+
+    // Hover expansion
+    const setupHover = () => {
+      document.querySelectorAll("button, a, .mem-entry, .suggestion-chip, .agent-card").forEach((el) => {
+        el.addEventListener("mouseenter", () => {
+          cursor.style.width = "20px"; cursor.style.height = "20px";
+          ring.style.width = "52px"; ring.style.height = "52px";
+          ring.style.borderColor = "rgba(255,255,255,0.7)";
+        });
+        el.addEventListener("mouseleave", () => {
+          cursor.style.width = "12px"; cursor.style.height = "12px";
+          ring.style.width = "36px"; ring.style.height = "36px";
+          ring.style.borderColor = "rgba(255,255,255,0.4)";
+        });
+      });
+    };
+    const t = setTimeout(setupHover, 500);
+
+    return () => {
+      document.removeEventListener("mousemove", onMove);
+      clearTimeout(t);
+    };
+  }, []);
+
+  // ── NEURAL CANVAS ───────────────────────────────────────
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    interface N { x: number; y: number; vx: number; vy: number; r: number }
+    const nodes: N[] = [];
+
+    const resize = () => { canvas.width = canvas.offsetWidth; canvas.height = canvas.offsetHeight; };
+    resize();
+    window.addEventListener("resize", resize);
+
+    for (let i = 0; i < 60; i++) {
+      nodes.push({
+        x: Math.random() * canvas.width,
+        y: Math.random() * canvas.height,
+        vx: (Math.random() - 0.5) * 0.3,
+        vy: (Math.random() - 0.5) * 0.3,
+        r: Math.random() * 2 + 1,
+      });
+    }
+
+    let raf: number;
+    const draw = () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      nodes.forEach((n) => {
+        n.x += n.vx; n.y += n.vy;
+        if (n.x < 0 || n.x > canvas.width) n.vx *= -1;
+        if (n.y < 0 || n.y > canvas.height) n.vy *= -1;
+        ctx.beginPath();
+        ctx.arc(n.x, n.y, n.r, 0, Math.PI * 2);
+        ctx.fillStyle = "rgba(255,255,255,0.35)";
+        ctx.fill();
+      });
+      nodes.forEach((a, i) => {
+        nodes.slice(i + 1).forEach((b) => {
+          const d = Math.hypot(a.x - b.x, a.y - b.y);
+          if (d < 120) {
+            ctx.beginPath();
+            ctx.moveTo(a.x, a.y);
+            ctx.lineTo(b.x, b.y);
+            ctx.strokeStyle = `rgba(255,255,255,${0.1 * (1 - d / 120)})`;
+            ctx.lineWidth = 0.5;
+            ctx.stroke();
+          }
+        });
+      });
+      raf = requestAnimationFrame(draw);
+    };
+    draw();
+
+    return () => { window.removeEventListener("resize", resize); cancelAnimationFrame(raf); };
+  }, []);
+
+  // ── TERMINAL TYPEWRITER ─────────────────────────────────
+  useEffect(() => {
+    const tb = terminalRef.current;
+    if (!tb) return;
+    let li = 0;
+    let cancelled = false;
+
+    const typeNext = () => {
+      if (cancelled || li >= TERMINAL_LINES.length) return;
+      const line = TERMINAL_LINES[li];
+
+      if (line.type === "cmd") {
+        const el = document.createElement("div");
+        el.className = "t-line";
+        const id = `tl${li}`;
+        el.innerHTML = `<span class="t-prompt">${line.prompt} $</span><span class="t-cmd" id="${id}"></span>`;
+        tb.appendChild(el);
+        const span = document.getElementById(id);
+        let c = 0;
+        const t = setInterval(() => {
+          if (cancelled) { clearInterval(t); return; }
+          c++;
+          if (span) span.textContent = line.text.slice(0, c);
+          if (c >= line.text.length) { clearInterval(t); li++; setTimeout(typeNext, 400); }
+        }, 30);
+      } else {
+        const el = document.createElement("div");
+        const cls: Record<string, string> = { out: "t-out", highlight: "t-out t-highlight", warn: "t-out t-warn", success: "t-out t-success" };
+        el.className = cls[line.type] || "t-out";
+        el.textContent = line.text;
+        tb.appendChild(el);
+        li++;
+        setTimeout(typeNext, 120);
+      }
+      tb.scrollTop = tb.scrollHeight;
+    };
+
+    const timeout = setTimeout(typeNext, 1800);
+    return () => { cancelled = true; clearTimeout(timeout); };
+  }, []);
+
+  // ── COUNTER ANIMATION ───────────────────────────────────
+  useEffect(() => {
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach((e) => {
+        if (e.isIntersecting) {
+          e.target.classList.add("visible");
+          if (e.target.classList.contains("stats-bar")) {
+            document.querySelectorAll("[data-target]").forEach((el) => {
+              const target = parseInt((el as HTMLElement).dataset.target || "");
+              if (isNaN(target)) return;
+              const suffix = (el as HTMLElement).dataset.suffix || "";
+              let start = 0;
+              const dur = 1600;
+              const step = (ts: number) => {
+                if (!start) start = ts;
+                const p = Math.min((ts - start) / dur, 1);
+                const ease = 1 - Math.pow(1 - p, 3);
+                el.textContent = Math.round(ease * target) + suffix;
+                if (p < 1) requestAnimationFrame(step);
+              };
+              requestAnimationFrame(step);
+            });
+          }
+        }
+      });
+    }, { threshold: 0.1 });
+
+    document.querySelectorAll(".reveal").forEach((el) => observer.observe(el));
+    return () => observer.disconnect();
+  }, []);
+
   return (
-    <main className="bg-background text-foreground cursor-none selection:bg-white selection:text-black">
-      <CustomCursor />
-      <FloatingSquares />
+    <>
+      <div id="cursor" />
+      <div id="cursor-ring" />
 
-      {/* ───── Hero Section ───── */}
-      <FadeInSection>
-        <span className="text-xs uppercase tracking-[0.3em] mb-6 text-muted-foreground font-mono">
-          [AI Context Engine]
-        </span>
-        <h1 className="text-5xl md:text-7xl lg:text-8xl font-serif max-w-5xl leading-[1.1] tracking-tight">
-          Your code has context.
-          <br />
-          <span className="italic opacity-70">Now your AI does too.</span>
-        </h1>
-        <p className="max-w-xl text-muted-foreground mt-8 text-base md:text-lg leading-relaxed">
-          SecondCortex captures every edit, every commit, every reasoning thread
-          — building a live knowledge graph that follows you across tools and
-          sessions.
-        </p>
-      </FadeInSection>
+      {/* NAV */}
+      <nav>
+        <div className="nav-logo">Second<span>Cortex</span></div>
+        <ul className="nav-links">
+          <li><a href="#how">Architecture</a></li>
+          <li><a href="#agents">Agents</a></li>
+          <li><a href="#memory">Memory</a></li>
+          <li><a href="#security">Security</a></li>
+        </ul>
+        <button className="nav-cta">Install Extension →</button>
+      </nav>
 
-      {/* ───── Philosophy Section ───── */}
-      <FadeInSection>
-        <span className="text-xs uppercase tracking-[0.3em] mb-6 text-muted-foreground font-mono">
-          [The Problem]
-        </span>
-        <h2 className="text-4xl md:text-6xl font-serif max-w-4xl leading-tight tracking-tight">
-          AI assistants forget everything the moment you close the tab.
-        </h2>
-        <p className="max-w-xl text-muted-foreground mt-8 text-base leading-relaxed">
-          Every prompt starts from zero. Every session is a blank slate.
-          SecondCortex gives your tools persistent, structured memory — so your
-          AI companion understands not just what you typed, but{" "}
-          <em className="text-foreground">why</em>.
-        </p>
-      </FadeInSection>
-
-      {/* ───── Features Section ───── */}
-      <FadeInSection>
-        <span className="text-xs uppercase tracking-[0.3em] mb-6 text-muted-foreground font-mono">
-          [Core Capabilities]
-        </span>
-        <h2 className="text-4xl md:text-6xl font-serif mb-16 tracking-tight">
-          Built Different
-        </h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-12 max-w-5xl text-left">
-          <div className="space-y-3">
-            <h3 className="text-lg font-semibold tracking-wide">
-              Live Context Graph
-            </h3>
-            <p className="text-sm text-muted-foreground leading-relaxed">
-              Every file, function, and commit becomes a node in a real-time
-              knowledge graph — visible and explorable.
-            </p>
-          </div>
-          <div className="space-y-3">
-            <h3 className="text-lg font-semibold tracking-wide">
-              Session Memory
-            </h3>
-            <p className="text-sm text-muted-foreground leading-relaxed">
-              Your coding context persists across IDE sessions, branches, and
-              even machines. No more &quot;let me re-explain&quot;.
-            </p>
-          </div>
-          <div className="space-y-3">
-            <h3 className="text-lg font-semibold tracking-wide">
-              VS Code Extension
-            </h3>
-            <p className="text-sm text-muted-foreground leading-relaxed">
-              Seamless integration into your existing workflow. Zero
-              configuration. Install and forget — it just works.
-            </p>
+      {/* HERO */}
+      <section className="hero">
+        <canvas ref={canvasRef} id="neural-canvas" />
+        <div className="hero-content">
+          <div className="hero-eyebrow">VS Code Extension · Multi-Agent AI · Vector Memory</div>
+          <h1 className="hero-title">
+            Your IDE<br />
+            <em>never</em><br />
+            forgets.
+          </h1>
+          <p className="hero-sub">
+            SecondCortex is a persistent AI memory layer for VS Code — it captures your workspace context as you code,
+            stores it as searchable vector embeddings, and lets you restore any past session with a natural language command.
+          </p>
+          <div className="hero-actions">
+            <button className="btn-primary btn-large">Install on VS Code</button>
+            <button className="btn-secondary btn-large">Read the Docs</button>
           </div>
         </div>
-      </FadeInSection>
 
-      {/* ───── Stats / Trust Section ───── */}
-      <FadeInSection>
-        <span className="text-xs uppercase tracking-[0.3em] mb-6 text-muted-foreground font-mono">
-          [By The Numbers]
-        </span>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-12 max-w-4xl">
-          {[
-            { value: "10×", label: "Faster Context Switching" },
-            { value: "∞", label: "Session Memory" },
-            { value: "0ms", label: "Setup Time" },
-            { value: "24/7", label: "Context Tracking" },
-          ].map((stat) => (
-            <div key={stat.label} className="text-center space-y-2">
-              <div className="text-4xl md:text-5xl font-serif tracking-tight">
-                {stat.value}
-              </div>
-              <div className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
-                {stat.label}
-              </div>
+        <div className="hero-terminal">
+          <div className="terminal-window">
+            <div className="terminal-bar">
+              <div className="t-dot red" />
+              <div className="t-dot yellow" />
+              <div className="t-dot green" />
+              <span className="terminal-title">cortex — secondcortex-backend</span>
             </div>
+            <div className="terminal-body" ref={terminalRef} />
+          </div>
+        </div>
+      </section>
+
+      {/* TICKER */}
+      <div className="ticker-wrap">
+        <div className="ticker-track">
+          {["Planner Agent", "Retriever Agent", "Executor Agent", "Simulator Sub-Agent", "ChromaDB Vector Store", "MCP Server", "Semantic Firewall", "Shadow Graph", "JWT Auth", "Azure Deployment", "FastAPI Backend", "GPT-4o", "Groq / Llama-3.1",
+            "Planner Agent", "Retriever Agent", "Executor Agent", "Simulator Sub-Agent", "ChromaDB Vector Store", "MCP Server", "Semantic Firewall", "Shadow Graph", "JWT Auth", "Azure Deployment", "FastAPI Backend", "GPT-4o", "Groq / Llama-3.1",
+          ].map((item, i) => (
+            <span key={i} className="ticker-item">{item}</span>
           ))}
         </div>
-      </FadeInSection>
+      </div>
 
-      {/* ───── CTA Section ───── */}
-      <FadeInSection>
-        <span className="text-xs uppercase tracking-[0.3em] mb-6 text-muted-foreground font-mono">
-          [Join The Future]
-        </span>
-        <h2 className="text-4xl md:text-6xl font-serif max-w-3xl leading-tight tracking-tight">
-          Stop re-explaining your codebase to AI.
-        </h2>
-        <p className="max-w-lg text-muted-foreground mt-6 text-base leading-relaxed">
-          Get started with SecondCortex today and give your AI tools the context
-          they deserve.
-        </p>
-      </FadeInSection>
-
-      {/* ───── Interactive Logo Section (White BG) ───── */}
-      <InteractiveLogo />
-
-      <StickyFooter />
-    </main>
+      {/* STATS */}
+      <div className="stats-bar reveal">
+        <div className="stat-item">
+          <div className="stat-num" data-target="3" data-suffix="">0</div>
+          <div className="stat-label">Core Agents</div>
+        </div>
+        <div className="stat-item">
+          <div className="stat-num" data-target="1536" data-suffix="">0</div>
+          <div className="stat-label">Embedding Dimensions</div>
+        </div>
+        <div className="stat-item">
+          <div className="stat-num" data-target="11" data-suffix="">0</div>
+          <div className="stat-label">Technical Pivots Shipped</div>
+        </div>
+        <div className="stat-item">
+          <div className="stat-num">~sub-second</div>
+          <div className="stat-label">Context Retrieval</div>
+        </div>
+      </div>
+    </>
   );
 }
