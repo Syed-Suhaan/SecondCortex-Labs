@@ -452,9 +452,60 @@ export default function LandingPage() {
               <div className="result-label">{resultLabel}</div>
               <div className="result-text">{resultText}</div>
             </div>
+
+            <div className="query-suggestions">
+              {Object.keys(QUERY_MAP).map((q) => (
+                <button key={q} className="suggestion-chip" onClick={() => { setQueryValue(q); fireQuery(q); }}>{q}</button>
+              ))}
+            </div>
           </div>
         </div>
       </section>
+
+      {/* SECURITY */}
+      <section id="security">
+        <div className="section-label">Security</div>
+        <div className="section-title">Zero-trust<br /><em>context.</em></div>
+        <div className="security-grid reveal">
+          <div className="security-feature">
+            <div className="feat-icon">↳</div>
+            <div className="feat-name">Semantic Firewall</div>
+            <div className="feat-desc">Every snapshot is scanned locally before being stored. Our semantic engine detects and redacts secrets, keys, and PII automatically.</div>
+          </div>
+          <div className="security-feature">
+            <div className="feat-icon">↳</div>
+            <div className="feat-name">Shadow Graph</div>
+            <div className="feat-desc">Workspace relationships are mapped in a private shadow graph, ensuring cross-repo context retrieval without exposing full repository structures.</div>
+          </div>
+        </div>
+      </section>
+
+      {/* FOOTER */}
+      <section className="cta-section">
+        <h2 className="cta-title reveal">Ready to <em>resurrect</em> your flow?</h2>
+        <button className="btn-primary cta-btn">Install SecondCortex for VS Code</button>
+      </section>
+
+      <footer>
+        <div className="footer-left">
+          <div className="f-logo">Second<span>Cortex</span></div>
+          <p className="f-desc">The persistent memory layer for modern developers. Build faster, forget less.</p>
+        </div>
+        <div className="footer-right">
+          <div className="f-col">
+            <div className="f-label">Product</div>
+            <a href="#" className="f-link">Extension</a>
+            <a href="#" className="f-link">MCP Server</a>
+            <a href="#" className="f-link">Docs</a>
+          </div>
+          <div className="f-col">
+            <div className="f-label">Company</div>
+            <a href="#" className="f-link">About</a>
+            <a href="#" className="f-link">Privacy</a>
+            <a href="#" className="f-link">Terms</a>
+          </div>
+        </div>
+      </footer>
     </>
   );
 }
