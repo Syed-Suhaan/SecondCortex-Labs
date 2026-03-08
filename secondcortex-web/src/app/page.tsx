@@ -20,9 +20,45 @@ const TERMINAL_LINES = [
   { type: "success", text: "✓  Workspace resurrected in 94ms" },
 ];
 
+// ── Memory responses data ───────────────────────────────────
+const RESPONSES: Record<string, { label: string; text: string }> = {
+  "auth/jwt_handler.py": {
+    label: "Retriever · Memory Match — auth/jwt_handler.py",
+    text: `Branch: feat/auth · 2 hours ago\n\nContext: Implementing JWT authentication with RS256 signing algorithm. 24-hour access token expiry with refresh token rotation. Stored session in PostgreSQL-backed auth database.\n\nRelevant symbols: create_access_token(), verify_token(), refresh_token_endpoint()`,
+  },
+  "agents/retriever.py": {
+    label: "Retriever · Memory Match — agents/retriever.py",
+    text: `Branch: feat/mcp · 5 hours ago\n\nContext: Cross-workspace semantic search added to Retriever Agent. ChromaDB collections isolated by user_id. Cosine similarity threshold set at 0.72 for high-signal results.\n\nRelevant symbols: search_memory(), upsert_snapshot(), cross_project_search()`,
+  },
+  "security/firewall.ts": {
+    label: "Retriever · Memory Match — security/firewall.ts",
+    text: `Branch: feat/security · 1 day ago\n\nContext: Semantic Firewall built to detect and redact secrets before any snapshot leaves the local machine. Pattern matching for API keys, JWT tokens, passwords, env vars.\n\nRelevant symbols: FirewallRule, redactSecrets(), scanSnapshot()`,
+  },
+  "agents/simulator.py": {
+    label: "Retriever · Memory Match — agents/simulator.py",
+    text: `Branch: feat/simulator · 2 days ago\n\nContext: Simulator Agent added as the 4th agent in the pipeline. Runs git status + diff before any resurrection to generate a SafetyReport. Blocks execution if destructive conflicts detected.\n\nRelevant symbols: run_preflight(), generate_safety_report(), check_unstashed_files()`,
+  },
+  "services/vector_db.py": {
+    label: "Retriever · Memory Match — services/vector_db.py",
+    text: `Branch: main · 3 days ago\n\nContext: VectorDB service abstraction over ChromaDB. Per-user collection management, snapshot upsert with 1536d embeddings, and semantic similarity search with metadata filtering.\n\nRelevant symbols: VectorDBService, upsert_snapshot(), semantic_search(), get_or_create_collection()`,
+  },
+};
+
+const QUERY_MAP: Record<string, string> = {
+  "jwt token flow": "auth/jwt_handler.py",
+  "vector search logic": "agents/retriever.py",
+  "where are secrets handled": "security/firewall.ts",
+  "git branch conflicts": "agents/simulator.py",
+  "rate limiting implementation": "services/vector_db.py",
+};
+
 export default function LandingPage() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const terminalRef = useRef<HTMLDivElement>(null);
+  const [queryValue, setQueryValue] = useState("");
+  const [activeEntry, setActiveEntry] = useState("auth/jwt_handler.py");
+  const [resultLabel, setResultLabel] = useState("Retriever · Awaiting Query");
+  const [resultText, setResultText] = useState("Click any memory entry or type a query to see semantic retrieval in action.");
 
   // ── CURSOR ──────────────────────────────────────────────
   useEffect(() => {
@@ -196,6 +232,31 @@ export default function LandingPage() {
     return () => observer.disconnect();
   }, []);
 
+  // ── MEMORY DEMO HANDLERS ──────────────────────────────────
+  const selectEntry = useCallback((file: string) => {
+    setActiveEntry(file);
+    const r = RESPONSES[file];
+    if (r) {
+      setResultLabel(r.label);
+      setResultText(r.text);
+    }
+  }, []);
+
+  const fireQuery = useCallback((q: string) => {
+    const match = QUERY_MAP[q.toLowerCase().trim()];
+    if (match) {
+      setActiveEntry(match);
+      const r = RESPONSES[match];
+      setResultLabel(r.label);
+      setResultText(r.text);
+    } else {
+      setResultLabel("Retriever · Semantic Search");
+      setResultText(
+        `Searching vector store for: "${q}"\n\nRunning cosine similarity search across ${Math.floor(Math.random() * 800) + 200} stored snapshots...\n\nTop result: similarity score 0.${Math.floor(Math.random() * 15) + 80} — context match found in active workspace history.`
+      );
+    }
+  }, []);
+
   return (
     <>
       <div id="cursor" />
@@ -276,6 +337,124 @@ export default function LandingPage() {
           <div className="stat-label">Context Retrieval</div>
         </div>
       </div>
+
+      {/* HOW IT WORKS */}
+      <section id="how">
+        <div className="section-label">How it works</div>
+        <div className="section-title">From keystroke to<br /><em>memory</em> in milliseconds.</div>
+        <p className="section-desc reveal">IDE events are captured in the background, embedded into a vector store, and made searchable — so any agent or external tool can pull relevant context when you need it.</p>
+
+        <div className="pipeline reveal">
+          <div className="pipeline-track" />
+          <div className="pipeline-nodes">
+            <div className="pipeline-node">
+              <div className="node-index">01</div>
+              <div className="node-title">Capture</div>
+              <div className="node-desc">The VS Code extension monitors every IDE event — open tabs, active files, terminal output, git state — with a debounced snapshot system.</div>
+              <span className="node-tag">eventCapture.ts</span>
+            </div>
+            <div className="pipeline-node">
+              <div className="node-index">02</div>
+              <div className="node-title">Embed</div>
+              <div className="node-desc">Snapshots are vectorized using text-embedding-3-small into 1536-dimensional space and stored in a persistent ChromaDB instance per user.</div>
+              <span className="node-tag">vector_db.py</span>
+            </div>
+            <div className="pipeline-node">
+              <div className="node-index">03</div>
+              <div className="node-title">Retrieve</div>
+              <div className="node-desc">When you trigger a session restore or ask a question, the Retriever searches your vector store by semantic similarity — returning the most relevant snapshots, including those from other repos.</div>
+              <span className="node-tag">retriever.py</span>
+            </div>
+            <div className="pipeline-node">
+              <div className="node-index">04</div>
+              <div className="node-title">Execute</div>
+              <div className="node-desc">After you confirm the Planner&apos;s proposed actions, the Executor applies them to your workspace — opening files, switching branches, running the Simulator sub-agent to check for git conflicts first.</div>
+              <span className="node-tag">executor.py</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* AGENTS */}
+      <section id="agents" className="agents-section">
+        <div className="section-label">The agents</div>
+        <div className="section-title">Three agents.<br /><em>One pipeline.</em></div>
+
+        <div className="agents-grid reveal">
+          <div className="agent-card">
+            <div className="agent-icon"><div className="agent-icon-inner" style={{ fontFamily: "var(--font-mono)", fontSize: 13, color: "var(--cyan)", fontWeight: 500 }}>PLN</div></div>
+            <div className="agent-name">Planner</div>
+            <div className="agent-role">Task Decomposition</div>
+            <div className="agent-desc">Takes a natural language request and breaks it into a structured, step-by-step action plan. Uses retrieved context from your memory to make decisions relevant to your actual codebase.</div>
+          </div>
+          <div className="agent-card">
+            <div className="agent-icon"><div className="agent-icon-inner" style={{ fontFamily: "var(--font-mono)", fontSize: 13, color: "var(--cyan)", fontWeight: 500 }}>RTV</div></div>
+            <div className="agent-name">Retriever</div>
+            <div className="agent-role">Semantic Memory Search</div>
+            <div className="agent-desc">Searches your ChromaDB vector store using cosine similarity to surface relevant past context — open files, git branches, code summaries.</div>
+          </div>
+          <div className="agent-card">
+            <div className="agent-icon"><div className="agent-icon-inner" style={{ fontFamily: "var(--font-mono)", fontSize: 13, color: "var(--cyan)", fontWeight: 500 }}>EXC</div></div>
+            <div className="agent-name">Executor</div>
+            <div className="agent-role">Workspace Restoration</div>
+            <div className="agent-desc">Applies the approved action plan to your VS Code workspace — opening files, switching branches, restoring terminal context.</div>
+          </div>
+        </div>
+      </section>
+
+      {/* MEMORY DEMO */}
+      <section id="memory" className="memory-demo">
+        <div className="section-label">Live Memory</div>
+        <div className="section-title">Query your<br /><em>past work.</em></div>
+
+        <div className="demo-split reveal">
+          <div className="memory-visualizer">
+            <div className="memory-header">
+              <span>ChromaDB · User Namespace</span>
+              <span className="mem-status">LIVE</span>
+            </div>
+            <div className="memory-entries">
+              {[
+                { file: "auth/jwt_handler.py", summary: "Implemented RS256 JWT signing with 24h expiry and refresh token rotation.", branch: "feat/auth", time: "2h ago" },
+                { file: "agents/retriever.py", summary: "Added cross-workspace semantic search with ChromaDB collection isolation per user_id.", branch: "feat/mcp", time: "5h ago" },
+                { file: "security/firewall.ts", summary: "Semantic Firewall redacts API keys and secrets locally before upload.", branch: "feat/security", time: "1d ago" },
+              ].map((entry) => (
+                <div
+                  key={entry.file}
+                  className={`mem-entry${activeEntry === entry.file ? " active" : ""}`}
+                  onClick={() => selectEntry(entry.file)}
+                >
+                  <div className="mem-file">{entry.file}</div>
+                  <div className="mem-summary">{entry.summary}</div>
+                  <div className="mem-meta"><span>{entry.branch}</span><span>{entry.time}</span></div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="query-panel">
+            <div className="query-title">Ask your second cortex anything about your codebase.</div>
+            <div className="query-desc">Natural language semantic search across your entire development history.</div>
+
+            <div className="query-input-wrap">
+              <input
+                className="query-input"
+                type="text"
+                placeholder="How does authentication work in this project?"
+                value={queryValue}
+                onChange={(e) => setQueryValue(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && fireQuery(queryValue)}
+              />
+              <button className="query-btn" onClick={() => fireQuery(queryValue)}>SEARCH</button>
+            </div>
+
+            <div className="query-result">
+              <div className="result-label">{resultLabel}</div>
+              <div className="result-text">{resultText}</div>
+            </div>
+          </div>
+        </div>
+      </section>
     </>
   );
 }
