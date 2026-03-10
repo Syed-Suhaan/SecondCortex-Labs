@@ -144,25 +144,17 @@ class VectorDBService:
             return []
 
         try:
-            total = int(collection.count() or 0)
-            if total <= 0:
-                return []
-
-            fetch_limit = max(1, min(limit, total))
-            fetch_offset = max(total - fetch_limit, 0)
-
-            # Pull the newest insertion window, then sort by timestamp.
+            # Fetch everything, sort by timestamp, return newest N.
+            # ChromaDB offset does NOT guarantee insertion order.
+            total = collection.count() or 0
             results = collection.get(
-                limit=fetch_limit,
-                offset=fetch_offset,
+                limit=total if total > 0 else 1,
                 include=["metadatas", "documents"]
             )
 
             if results and results.get("metadatas"):
-                # Sort by timestamp descending (most recent first)
-                metadatas = results["metadatas"]
                 sorted_metas = sorted(
-                    metadatas,
+                    results["metadatas"],
                     key=lambda m: m.get("timestamp", ""),
                     reverse=True
                 )
@@ -182,21 +174,19 @@ class VectorDBService:
             return []
 
         try:
-            total = int(collection.count() or 0)
-            if total <= 0:
-                return []
-
-            fetch_limit = max(1, min(limit, total))
-            fetch_offset = max(total - fetch_limit, 0)
-
-            results = collection.get(limit=fetch_limit, offset=fetch_offset, include=["metadatas"])
+            total = collection.count() or 0
+            results = collection.get(
+                limit=total if total > 0 else 1,
+                include=["metadatas"]
+            )
             if not results or not results.get("metadatas"):
                 return []
 
             metadatas = [dict(meta) for meta in results["metadatas"] if meta]
             # Oldest -> newest for linear slider traversal.
             metadatas.sort(key=lambda m: m.get("timestamp", ""))
-            return metadatas
+            # Return only the last `limit` entries (newest window)
+            return metadatas[-limit:] if len(metadatas) > limit else metadatas
         except Exception as exc:
             logger.error("get_snapshot_timeline failed: %s", exc)
             return []
