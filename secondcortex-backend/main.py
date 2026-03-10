@@ -16,6 +16,7 @@ import sys
 import os
 import re
 from datetime import datetime
+from typing import Any
 
 # ── Force Python to see the local directories (fixes Azure ModuleNotFoundError) ──────────
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
@@ -114,6 +115,9 @@ planner = PlannerAgent(vector_db)
 executor = ExecutorAgent()
 simulator = SimulatorAgent()
 
+# Most recently received raw snapshot per user, updated immediately on /snapshot ingest.
+_latest_ingested_snapshot: dict[str, dict[str, Any]] = {}
+
 
 def _is_latest_snapshot_question(question: str) -> bool:
     q = (question or "").strip().lower()
@@ -145,6 +149,34 @@ def _build_latest_snapshot_summary(snapshot: dict, wants_main: bool) -> str:
         f"The latest snapshot is from {ts}, editing {file_path} on branch {branch}. "
         f"Summary: {summary}"
     )
+
+
+def _parse_iso_timestamp(value: str | None) -> datetime | None:
+    if not value:
+        return None
+    try:
+        # Handle trailing Z if present.
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except Exception:
+        return None
+
+
+def _pick_newer_snapshot(a: dict | None, b: dict | None) -> dict | None:
+    if a is None:
+        return b
+    if b is None:
+        return a
+
+    ta = _parse_iso_timestamp(a.get("timestamp"))
+    tb = _parse_iso_timestamp(b.get("timestamp"))
+
+    if ta and tb:
+        return a if ta >= tb else b
+    if ta and not tb:
+        return a
+    if tb and not ta:
+        return b
+    return a
 
 
 
@@ -184,6 +216,17 @@ async def receive_snapshot(
     Returns 200 OK instantly, then processes asynchronously via Retriever.
     """
     logger.info("Received snapshot for file: %s (user=%s)", payload.active_file, user_id)
+
+    # Immediate cache update so latest queries can reflect ingest instantly,
+    # even if async retrieval/vector indexing is still in progress.
+    _latest_ingested_snapshot[user_id] = {
+        "id": "pending",
+        "timestamp": payload.timestamp.isoformat() if hasattr(payload.timestamp, "isoformat") else str(payload.timestamp),
+        "active_file": payload.active_file,
+        "git_branch": payload.git_branch,
+        "summary": f"Capture received: editing {payload.active_file}",
+    }
+
     background_tasks.add_task(retriever.process_snapshot, payload, user_id)
     return {"status": "accepted", "message": "Snapshot queued for processing."}
 
@@ -316,12 +359,17 @@ async def handle_query(
         if _is_latest_snapshot_question(req.question):
             wants_main = _question_wants_main_branch(req.question)
             recent = await vector_db.get_recent_snapshots(limit=50, user_id=user_id)
+            latest_ingested = _latest_ingested_snapshot.get(user_id)
 
             if wants_main:
                 recent = [r for r in recent if str(r.get("git_branch", "")).strip().lower() == "main"]
+                if latest_ingested and str(latest_ingested.get("git_branch", "")).strip().lower() != "main":
+                    latest_ingested = None
 
-            if recent:
-                latest = recent[0]
+            latest_stored = recent[0] if recent else None
+            latest = _pick_newer_snapshot(latest_ingested, latest_stored)
+
+            if latest:
                 response = QueryResponse(
                     summary=_build_latest_snapshot_summary(latest, wants_main),
                     reasoningLog=[
