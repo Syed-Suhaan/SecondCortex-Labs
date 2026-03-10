@@ -144,9 +144,17 @@ class VectorDBService:
             return []
 
         try:
-            # Use .get() for direct retrieval (no embedding needed)
+            total = int(collection.count() or 0)
+            if total <= 0:
+                return []
+
+            fetch_limit = max(1, min(limit, total))
+            fetch_offset = max(total - fetch_limit, 0)
+
+            # Pull the newest insertion window, then sort by timestamp.
             results = collection.get(
-                limit=limit,
+                limit=fetch_limit,
+                offset=fetch_offset,
                 include=["metadatas", "documents"]
             )
 
@@ -174,7 +182,14 @@ class VectorDBService:
             return []
 
         try:
-            results = collection.get(limit=limit, include=["metadatas"])
+            total = int(collection.count() or 0)
+            if total <= 0:
+                return []
+
+            fetch_limit = max(1, min(limit, total))
+            fetch_offset = max(total - fetch_limit, 0)
+
+            results = collection.get(limit=fetch_limit, offset=fetch_offset, include=["metadatas"])
             if not results or not results.get("metadatas"):
                 return []
 

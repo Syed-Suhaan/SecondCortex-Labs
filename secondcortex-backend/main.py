@@ -14,6 +14,7 @@ Endpoints:
 import logging
 import sys
 import os
+import re
 from datetime import datetime
 
 # ── Force Python to see the local directories (fixes Azure ModuleNotFoundError) ──────────
@@ -112,6 +113,38 @@ retriever = RetrieverAgent(vector_db)
 planner = PlannerAgent(vector_db)
 executor = ExecutorAgent()
 simulator = SimulatorAgent()
+
+
+def _is_latest_snapshot_question(question: str) -> bool:
+    q = (question or "").strip().lower()
+    if not q:
+        return False
+    has_recency = bool(re.search(r"\b(latest|newest|most recent|current|last|fetch latest)\b", q))
+    has_context = bool(re.search(r"\b(snapshot|snapshots|timeline|context|edited|editing|file|commit|branch)\b", q))
+    return has_recency and has_context
+
+
+def _question_wants_main_branch(question: str) -> bool:
+    q = (question or "").lower()
+    return ("main branch" in q) or bool(re.search(r"\bon\s+main\b", q))
+
+
+def _build_latest_snapshot_summary(snapshot: dict, wants_main: bool) -> str:
+    ts = snapshot.get("timestamp", "unknown time")
+    file_path = snapshot.get("active_file") or "an unknown file"
+    branch = snapshot.get("git_branch") or "unknown"
+    summary = snapshot.get("summary") or "No summary available."
+
+    if wants_main:
+        return (
+            f"The latest snapshot on the main branch is from {ts}, "
+            f"editing {file_path}. Summary: {summary}"
+        )
+
+    return (
+        f"The latest snapshot is from {ts}, editing {file_path} on branch {branch}. "
+        f"Summary: {summary}"
+    )
 
 
 
@@ -277,6 +310,39 @@ async def handle_query(
     """
     try:
         logger.info("Query received: %s (user=%s, session=%s)", req.question, user_id, session_id)
+
+        # Deterministic fast-path for recency questions.
+        # Avoids LLM choosing semantically similar but older snapshots.
+        if _is_latest_snapshot_question(req.question):
+            wants_main = _question_wants_main_branch(req.question)
+            recent = await vector_db.get_recent_snapshots(limit=50, user_id=user_id)
+
+            if wants_main:
+                recent = [r for r in recent if str(r.get("git_branch", "")).strip().lower() == "main"]
+
+            if recent:
+                latest = recent[0]
+                response = QueryResponse(
+                    summary=_build_latest_snapshot_summary(latest, wants_main),
+                    reasoningLog=[
+                        "Detected latest-snapshot query and used recency retrieval.",
+                        f"Selected snapshot id={latest.get('id', 'unknown')} timestamp={latest.get('timestamp', 'unknown')}",
+                    ],
+                    commands=[],
+                )
+            else:
+                response = QueryResponse(
+                    summary=(
+                        "No matching snapshots were found for that latest query. "
+                        "Try again after a new snapshot is captured."
+                    ),
+                    reasoningLog=["Recency retrieval returned no snapshots."],
+                    commands=[],
+                )
+
+            user_db.save_chat_message(user_id, "user", req.question, session_id=session_id)
+            user_db.save_chat_message(user_id, "assistant", response.summary, session_id=session_id)
+            return response
 
         # Step 1: Plan — break the question into search tasks
         plan_result = await planner.plan(req.question, user_id=user_id)
