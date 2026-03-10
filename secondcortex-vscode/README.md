@@ -9,11 +9,24 @@ SecondCortex is a VS Code extension designed to capture and resurrect your devel
 - **Workspace Resurrection Engine**: Restore branch context, stashes, open files, and terminal intent in one flow.
 - **Live Context Capture**: Continuously snapshots editor and terminal activity with debounce and noise filtering.
 - **Secure-By-Default Pipeline**: Semantic Firewall redacts keys, passwords, and sensitive tokens before sync.
+- **Cortex as a Service (MCP)**: Expose your personal Cortex Memory to external AI tools through Model Context Protocol.
 - **SecondCortex Sidebar Chat**: Ask architecture or project-history questions directly inside VS Code.
 - **Session History + New Chat**: Quickly revisit prior conversations or start clean context threads.
 - **Shadow Graph Panel**: Open the visual context graph to inspect relationships across captured work.
 - **Safe Authentication Layer**: Login state uses VS Code SecretStorage for encrypted local token handling.
 - **CLI + Command Palette Support**: Trigger core actions from slash commands, extension commands, or terminal CLI.
+
+## 🧠 Cortex as a Service (MCP)
+
+SecondCortex is not only an extension UI. It also powers an MCP endpoint from the backend so other AI assistants can query your private development memory.
+
+What MCP adds:
+
+- Reuse the same memory graph outside VS Code chat.
+- Query historical snapshots semantically from MCP-compatible clients.
+- Keep memory access scoped and authenticated with MCP API keys.
+
+MCP is served by the backend and exposes tools like `search_memory` for context retrieval across files, branches, and snapshots.
 
 ## 🛠️ Getting Started
 

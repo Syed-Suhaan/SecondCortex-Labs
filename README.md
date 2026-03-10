@@ -5,6 +5,7 @@ SecondCortex is an AI-powered developer memory system that captures coding conte
 It consists of:
 - A VS Code extension for capture, chat, and workspace resurrection.
 - A FastAPI backend with multi-agent orchestration.
+- A Model Context Protocol (MCP) server that exposes Cortex Memory as a service.
 - A Next.js frontend for graph and dashboard experiences.
 
 ## Why SecondCortex
@@ -27,6 +28,7 @@ It consists of:
 - Workspace Resurrection Engine
 - Live Context Capture with debounce/noise filtering
 - Semantic Firewall for local redaction
+- Cortex as a Service (MCP): query private developer memory from external AI clients
 - Sidebar Chat with session history and new chat
 - Shadow Graph visualization panel
 - Secure auth token handling via VS Code SecretStorage
@@ -38,7 +40,8 @@ It consists of:
 2. Semantic Firewall redacts sensitive values locally.
 3. Sanitized snapshots are sent to backend APIs.
 4. Backend retrieval/planning/execution agents process context and queries.
-5. Results are shown in extension chat and web graph experiences.
+5. MCP exposes the same memory layer as a tool for external AI assistants.
+6. Results are shown in extension chat and web graph experiences.
 
 ## Tech Stack
 
@@ -160,7 +163,22 @@ docker compose down
 - `GET /api/v1/events`
 - `GET /api/v1/snapshots/timeline`
 - `GET /api/v1/chat/history`
+- `SSE /mcp` (MCP endpoint mount)
 - `GET /health`
+
+## MCP and Cortex as a Service
+
+SecondCortex includes an MCP server (`secondcortex-backend/mcp_server.py`) mounted by the backend at `/mcp`.
+
+What this enables:
+- External AI clients can use your historical IDE context as a live tool.
+- Cortex Memory is queryable with semantic search across snapshots.
+- Access is user-scoped through MCP API key authentication.
+
+Current MCP tool:
+- `search_memory(query, api_key, top_k=5)`: returns relevant snapshots with summary, branch, file path, entities, and code context excerpts.
+
+This is the foundation for using SecondCortex not just as an extension, but as a developer memory service across tooling.
 
 ## VS Code Extension Packaging and Publishing
 
@@ -191,23 +209,6 @@ Recommended release flow:
 - Extension activation is currently broad (`*`), so bundle/optimize before larger scale distribution.
 - VSIX currently includes many dependency files; tune `.vscodeignore` and bundle to reduce package size.
 
-## Troubleshooting
-
-### Marketplace shows old README/icon
-
-- Confirm you published a higher version.
-- Hard refresh listing after publish.
-- Wait for Marketplace CDN propagation.
-
-### Backend starts but query fails
-
-- Verify `GITHUB_TOKEN` and/or `GROQ_API_KEY`.
-- Check backend logs for 429 or auth errors.
-
-### Extension appears idle
-
-- Ensure `secondcortex.captureEnabled=true`.
-- Verify backend URL in extension settings.
 
 ## Additional Docs
 
