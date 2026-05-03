@@ -72,7 +72,7 @@ from models.schemas import (
 )
 from auth.routes import user_db
 from services.vector_db import VectorDBService
-from services.llm_client import task_chat_completion, validate_llm_configuration
+from services.llm_client import task_chat_completion, validate_llm_configuration_for_startup
 from services.git_ingest import RetroGitIngestionService
 from services.external_ingest import ExternalIngestionService
 from services.azure_document_intelligence import AzureDocumentIntelligenceService
@@ -111,11 +111,15 @@ app.add_middleware(
 
 @app.on_event("startup")
 async def validate_startup_llm_config() -> None:
-    errors = validate_llm_configuration()
+    fatal_errors, warning_errors = validate_llm_configuration_for_startup()
+    errors = fatal_errors
     if errors:
         message = " | ".join(errors)
         logger.error("LLM startup validation failed: %s", message)
         raise RuntimeError(f"Invalid LLM configuration: {message}")
+    if warning_errors:
+        warn_message = " | ".join(warning_errors)
+        logger.warning("LLM startup validation has non-fatal warnings: %s", warn_message)
     logger.info("LLM startup validation passed.")
 
 

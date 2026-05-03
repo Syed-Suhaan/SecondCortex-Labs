@@ -366,6 +366,49 @@ def validate_llm_configuration() -> list[str]:
     return errors
 
 
+def validate_llm_configuration_for_startup() -> tuple[list[str], list[str]]:
+    """
+    Validate LLM routing with startup-aware semantics.
+
+    Returns:
+        fatal_errors: must stop process startup.
+        warning_errors: startup-compatible issues that may reduce coverage.
+    """
+    fatal_errors: list[str] = []
+    warning_errors: list[str] = []
+
+    for task in ALL_TASKS:
+        try:
+            route = resolve_route(task)
+        except Exception as exc:
+            fatal_errors.append(f"task={task}: {exc}")
+            continue
+
+        primary_errors = _validate_provider_config(route.provider, task, route.model)
+        fallback_errors: list[str] = []
+        if route.fallback_provider:
+            fallback_model = route.fallback_model or _get_task_model(route.fallback_provider, task)
+            fallback_errors = _validate_provider_config(route.fallback_provider, task, fallback_model, prefix="fallback")
+
+        # If both primary and fallback are invalid, startup should fail.
+        if primary_errors and (not route.fallback_provider or fallback_errors):
+            fatal_errors.extend(primary_errors)
+            if route.fallback_provider:
+                fatal_errors.extend(fallback_errors)
+            continue
+
+        # Primary is invalid but fallback is valid: allow startup in degraded mode.
+        if primary_errors:
+            warning_errors.extend(primary_errors)
+
+        # Primary is valid but fallback is invalid: still let startup proceed,
+        # but capture a warning for operator visibility.
+        if not primary_errors and fallback_errors:
+            warning_errors.extend(fallback_errors)
+
+    return fatal_errors, warning_errors
+
+
 def _validate_provider_config(provider: str, task: str, model: str, prefix: str = "primary") -> list[str]:
     issues: list[str] = []
     provider = _normalize_provider(provider)
