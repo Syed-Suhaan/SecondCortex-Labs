@@ -1042,6 +1042,17 @@ export default function LandingPage() {
           </div>
         </div>
 
+        <div className="footer-links-group">
+          <div className="footer-links-title">Organization</div>
+          <div className="footer-links">
+            <div>SecondCortex Labs</div>
+            <a href="mailto:founder@secondcortex.tech">founder@secondcortex.tech</a>
+            <a href="tel:+919346445141">+91 9346445141</a>
+            <a href="https://secondcortex.tech" target="_blank" rel="noreferrer">
+              secondcortex.tech
+            </a>
+          </div>
+        </div>
         <div>Copyright 2026 SecondCortex Labs</div>
       </footer>
 
