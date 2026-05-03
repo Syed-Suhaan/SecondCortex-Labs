@@ -1046,6 +1046,7 @@ export default function LandingPage() {
           <div className="footer-links-title">Organization</div>
           <div className="footer-links">
             <div>SecondCortex Labs</div>
+            <div>MIT Manipal, Eswar Nagar, Manipal, Karnataka</div>
             <a href="mailto:founder@secondcortex.tech">founder@secondcortex.tech</a>
             <a href="tel:+919346445141">+91 9346445141</a>
             <a href="https://secondcortex.tech" target="_blank" rel="noreferrer">
