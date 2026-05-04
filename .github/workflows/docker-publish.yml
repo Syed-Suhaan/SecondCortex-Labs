@@ -97,30 +97,72 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          for i in {1..12}; do
-            code=$(curl -s -o /dev/null -w "%{http_code}" https://sc-backend-suhaan.azurewebsites.net/health || true)
+          url="https://sc-backend-suhaan.azurewebsites.net/health"
+          attempts=40
+          delay=15
+
+          echo "Waiting for backend App Service to finish pulling and starting the new container..."
+          sleep 45
+
+          for i in $(seq 1 "$attempts"); do
+            response_file="$(mktemp)"
+            code=$(curl \
+              --silent \
+              --show-error \
+              --location \
+              --connect-timeout 10 \
+              --max-time 20 \
+              --output "$response_file" \
+              --write-out "%{http_code}" \
+              "$url" || true)
+
             if [ "$code" = "200" ]; then
               echo "Backend health check passed"
+              rm -f "$response_file"
               exit 0
             fi
-            echo "Backend not ready yet (attempt $i/12, status=$code)"
-            sleep 10
+
+            echo "Backend not ready yet (attempt $i/$attempts, status=$code)"
+            if [ "$i" = "$attempts" ]; then
+              echo "Backend health check failed. Last response body:"
+              cat "$response_file" || true
+              rm -f "$response_file"
+              exit 1
+            fi
+
+            rm -f "$response_file"
+            sleep "$delay"
           done
-          echo "Backend health check failed"
-          exit 1
 
       - name: Frontend health check
         shell: bash
         run: |
           set -euo pipefail
-          for i in {1..12}; do
-            code=$(curl -s -o /dev/null -w "%{http_code}" https://sc-frontend-suhaan.azurewebsites.net/ || true)
+          url="https://sc-frontend-suhaan.azurewebsites.net/"
+          attempts=24
+          delay=10
+
+          for i in $(seq 1 "$attempts"); do
+            code=$(curl \
+              --silent \
+              --show-error \
+              --location \
+              --connect-timeout 10 \
+              --max-time 20 \
+              --output /dev/null \
+              --write-out "%{http_code}" \
+              "$url" || true)
+
             if [ "$code" = "200" ]; then
               echo "Frontend health check passed"
               exit 0
             fi
-            echo "Frontend not ready yet (attempt $i/12, status=$code)"
-            sleep 10
+
+            echo "Frontend not ready yet (attempt $i/$attempts, status=$code)"
+            if [ "$i" = "$attempts" ]; then
+              echo "Frontend health check failed"
+              exit 1
+            fi
+
+            sleep "$delay"
           done
-          echo "Frontend health check failed"
-          exit 1
