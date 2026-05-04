@@ -23,13 +23,14 @@ COPY --from=base /usr/local/bin /usr/local/bin
 # Copy application code
 COPY . .
 
-# Expose the API port
-EXPOSE 8000
+# Expose Azure App Service's default container port plus the local backend port.
+EXPOSE 80 8000
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
-    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')" || exit 1
+    CMD python -c "import os, urllib.request; port = os.environ.get('PORT') or os.environ.get('WEBSITES_PORT') or '80'; urllib.request.urlopen(f'http://localhost:{port}/health')" || exit 1
 
 # Run with gunicorn + uvicorn workers for production.
+# Azure App Service defaults custom containers to port 80 unless PORT/WEBSITES_PORT is set.
 # Send access/error logs to stdout/stderr so Azure App Service Log Stream can show them.
-CMD ["gunicorn", "-w", "2", "-k", "uvicorn.workers.UvicornWorker", "main:app", "--bind", "0.0.0.0:8000", "--timeout", "120", "--access-logfile", "-", "--error-logfile", "-"]
+CMD ["sh", "-c", "exec gunicorn -w ${GUNICORN_WORKERS:-2} -k uvicorn.workers.UvicornWorker main:app --bind 0.0.0.0:${PORT:-${WEBSITES_PORT:-80}} --timeout ${GUNICORN_TIMEOUT:-120} --access-logfile - --error-logfile -"]
