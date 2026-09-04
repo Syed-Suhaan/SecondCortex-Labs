@@ -1,22 +1,15 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import BackendOffline from "@/components/BackendOffline";
 import { DottedSurface } from "@/components/landing/DottedSurface";
 
 export default function LandingPage() {
-  const router = useRouter();
   const [showPmModal, setShowPmModal] = useState(false);
-  const [pmEmail, setPmEmail] = useState("");
-  const [pmPassword, setPmPassword] = useState("");
-  const [pmError, setPmError] = useState("");
-  const [isPmSubmitting, setIsPmSubmitting] = useState(false);
   const [queryLoading, setQueryLoading] = useState(false);
-  const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "https://sc-backend-suhaan.azurewebsites.net";
   const extensionMarketplaceUrl = "https://marketplace.visualstudio.com/items?itemName=secondcortex-labs.secondcortex";
   const githubRepoUrl = "https://github.com/Syed-Suhaan/SecondCortex-Labs";
   const docsUrl = "https://github.com/Syed-Suhaan/SecondCortex-Labs/tree/main/docs";
-  const mcpEndpointUrl = "https://sc-backend-suhaan.azurewebsites.net/mcp";
   const mainNavLinks = [
     { label: "Live Graph", href: "/live" },
     { label: "Team Cortex", href: "/?pm=true" },
@@ -59,109 +52,9 @@ export default function LandingPage() {
     },
   ];
 
-  const loginPmSession = async (email: string, password: string, guestMode: boolean) => {
-    const res = await fetch(`${backendUrl}/api/v1/auth/login`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password }),
-    });
-
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err.detail || "Team Cortex login failed. Please check credentials.");
-    }
-
-    const data = await res.json();
-    localStorage.setItem("sc_jwt_token", data.token);
-    localStorage.setItem("sc_pm_mode", "auth");
-    if (guestMode) {
-      localStorage.setItem("sc_pm_guest_mode", "true");
-      router.push("/live?pm=true&guest=true");
-    } else {
-      localStorage.removeItem("sc_pm_guest_mode");
-      router.push("/live?pm=true");
-    }
-    setShowPmModal(false);
-  };
-
-  const handlePmGuestLogin = async () => {
-    setIsPmSubmitting(true);
-    setPmError("");
-
-    // In local/demo workflows, bypass backend guest auth so mock Team Cortex always opens.
-    if (typeof window !== "undefined" && ["localhost", "127.0.0.1"].includes(window.location.hostname)) {
-      localStorage.setItem("sc_pm_mode", "auth");
-      localStorage.setItem("sc_pm_guest_mode", "true");
-      router.push("/live?pm=true&guest=true");
-      setShowPmModal(false);
-      setIsPmSubmitting(false);
-      return;
-    }
-
-    const controller = new AbortController();
-    const timeoutId = window.setTimeout(() => controller.abort(), 45000);
-    try {
-      let res = await fetch(`${backendUrl}/api/v1/auth/pm-guest/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        signal: controller.signal,
-      });
-
-      if (res.status === 404) {
-        res = await fetch(`${backendUrl}/api/v1/auth/pm_guest/login`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          signal: controller.signal,
-        });
-      }
-
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.detail || "Team Cortex guest login is unavailable right now.");
-      }
-
-      const data = await res.json();
-      localStorage.setItem("sc_jwt_token", data.token);
-      localStorage.setItem("sc_pm_mode", "auth");
-      localStorage.setItem("sc_pm_guest_mode", "true");
-      router.push("/live?pm=true&guest=true");
-      setShowPmModal(false);
-    } catch (err) {
-      if (err instanceof DOMException && err.name === "AbortError") {
-        setPmError("Team Cortex guest login timed out. Please try again in a few seconds.");
-      } else {
-        setPmError(err instanceof Error ? err.message : "Team Cortex guest login failed.");
-      }
-    } finally {
-      window.clearTimeout(timeoutId);
-      setIsPmSubmitting(false);
-    }
-  };
-
-  const handlePmLogin = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const email = pmEmail.trim();
-    if (!email || !pmPassword) {
-      setPmError("Please enter both email and password.");
-      return;
-    }
-
-    setIsPmSubmitting(true);
-    setPmError("");
-
-    try {
-      await loginPmSession(email, pmPassword, false);
-    } catch (err) {
-      setPmError(err instanceof Error ? err.message : "Cannot reach backend. Check your network and try again.");
-    } finally {
-      setIsPmSubmitting(false);
-    }
-  };
-
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.get("pm") === "true") {
-      setPmError("");
       setShowPmModal(true);
     }
   }, []);
@@ -367,7 +260,6 @@ export default function LandingPage() {
             className="nav-login nav-pm-login"
             type="button"
             onClick={() => {
-              setPmError("");
               setShowPmModal(true);
             }}
           >
@@ -936,7 +828,7 @@ export default function LandingPage() {
     "mcp": {
       "servers": {
         "secondcortex": {
-          "url": "https://sc-backend-suhaan.azurewebsites.net/mcp",
+          "url": "https://your-backend.example.com/mcp",
           "transport": "sse"
         }
       }
@@ -949,8 +841,8 @@ export default function LandingPage() {
             <div className="query-desc">
               Any MCP-compatible agent can query your codebase decisions, debugging history, and team institutional context without you manually pasting context.
             </div>
-            <a className="btn-secondary btn-large" href={mcpEndpointUrl} target="_blank" rel="noreferrer">
-              Open MCP Endpoint
+            <a className="btn-secondary btn-large" href={docsUrl} target="_blank" rel="noreferrer">
+              Read MCP Docs
             </a>
           </div>
         </div>
@@ -1017,7 +909,6 @@ export default function LandingPage() {
               type="button"
               className="footer-link-button"
               onClick={() => {
-                setPmError("");
                 setShowPmModal(true);
               }}
             >
@@ -1064,65 +955,10 @@ export default function LandingPage() {
             <div className="sc-auth-header">
               <p className="sc-auth-eyebrow">Team Cortex Access</p>
               <h2 className="sc-auth-title">Team Cortex Login</h2>
-              <p className="sc-auth-sub">Log in to Team Cortex or continue with guest access to review team progress.</p>
+              <p className="sc-auth-sub">Team Cortex needs the cloud API, which is not deployed right now. Work locally instead.</p>
             </div>
 
-            <form onSubmit={handlePmLogin} className="sc-auth-form">
-              <label className="sc-auth-label" htmlFor="pm-email">
-                Email
-              </label>
-              <input
-                id="pm-email"
-                className="sc-auth-input"
-                type="email"
-                value={pmEmail}
-                onChange={(event) => setPmEmail(event.target.value)}
-                placeholder="pm@secondcortex.ai"
-                required
-              />
-
-              <label className="sc-auth-label" htmlFor="pm-password">
-                Password
-              </label>
-              <input
-                id="pm-password"
-                className="sc-auth-input"
-                type="password"
-                value={pmPassword}
-                onChange={(event) => setPmPassword(event.target.value)}
-                placeholder="********"
-                required
-              />
-
-              {pmError && <div className="sc-auth-error" aria-live="polite">{pmError}</div>}
-
-              <button type="submit" disabled={isPmSubmitting} className="btn-primary sc-auth-submit">
-                {isPmSubmitting ? (
-                  <>
-                    <span className="loading-ring" aria-hidden="true" />
-                    Please wait…
-                  </>
-                ) : (
-                  "Enter Team Cortex"
-                )}
-              </button>
-
-              <button
-                type="button"
-                className="btn-secondary sc-auth-submit sc-guest-btn"
-                disabled={isPmSubmitting}
-                onClick={handlePmGuestLogin}
-              >
-                {isPmSubmitting ? (
-                  <>
-                    <span className="loading-ring" aria-hidden="true" />
-                    Please wait…
-                  </>
-                ) : (
-                  "Team Cortex Guest Login"
-                )}
-              </button>
-            </form>
+<BackendOffline title="Team Cortex" />
           </div>
         </div>
       )}
