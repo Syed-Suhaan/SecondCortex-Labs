@@ -1,4 +1,4 @@
-import AuthForm from '@/components/AuthForm';
+import BackendOffline from '@/components/BackendOffline';
 
 export const metadata = {
     title: 'SecondCortex — Login',
@@ -6,5 +6,9 @@ export const metadata = {
 };
 
 export default function LoginPage() {
-    return <AuthForm mode="login" />;
+    return (
+        <main style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '48px 24px' }}>
+            <BackendOffline title="Login" />
+        </main>
+    );
 }
